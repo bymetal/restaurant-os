@@ -1,14 +1,15 @@
 x-app-environment: &app-environment
-  NODE_ENV: production
-  HOST: 0.0.0.0
-  PORT: 4000
-  DATABASE_URL: ${DATABASE_URL}
-  REDIS_URL: ${REDIS_URL}
-  SESSION_SECRET: ${SESSION_SECRET}
-  JWT_SECRET: ${JWT_SECRET}
-  REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
-  PASSWORD_RESET_SECRET: ${PASSWORD_RESET_SECRET}
-  APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY}
+  - NODE_ENV
+  - HOST
+  - PORT
+  - LOG_LEVEL
+  - DATABASE_URL
+  - REDIS_URL
+  - SESSION_SECRET
+  - JWT_SECRET
+  - REFRESH_TOKEN_SECRET
+  - PASSWORD_RESET_SECRET
+  - APP_ENCRYPTION_KEY
 
 services:
   api:
@@ -31,7 +32,9 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - node -e "fetch('http://127.0.0.1:4000/health/live').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+        - >-
+          node -e "fetch('http://127.0.0.1:4000/health/live').then((r) =>
+          process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
       interval: 10s
       timeout: 5s
       retries: 12
@@ -52,9 +55,9 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-restaurant_os}
-      POSTGRES_USER: ${POSTGRES_USER:-restaurant_os}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      - POSTGRES_DB
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
     volumes:
       - restaurant-os-postgres:/var/lib/postgresql/data
     healthcheck:
