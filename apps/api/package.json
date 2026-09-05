@@ -1,0 +1,20 @@
+{
+  "name": "@restaurant-os/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@restaurant-os/config": "workspace:*",
+    "@restaurant-os/contracts": "workspace:*",
+    "@restaurant-os/db": "workspace:*",
+    "fastify": "^5.2.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
