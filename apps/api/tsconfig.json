@@ -12,6 +12,7 @@
     { "path": "../../packages/config" },
     { "path": "../../packages/contracts" },
     { "path": "../../packages/domain" },
+    { "path": "../../packages/integrations" },
     { "path": "../../packages/db" }
   ]
 }

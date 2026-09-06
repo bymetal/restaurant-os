@@ -77,3 +77,33 @@ implicit menu tree per business.
 Cart totals can be calculated without floating-point arithmetic, and Phase 3
 order snapshots can reuse the same price primitives. A later menu container can
 be introduced through a migration without changing product ownership rules.
+
+## ADR-004 - Phase 3 Order and Payment Boundaries
+
+- Date: 2026-09-06
+- Status: Accepted
+
+### Context
+
+Checkout must remain correct when menu prices or availability change after a
+cart is created, and the same client request may be retried.
+
+### Decision
+
+Checkout locks the active cart, revalidates every product, variant, modifier,
+branch, and availability rule from PostgreSQL, and recomputes totals in integer
+minor units. It writes order snapshots, customer/address snapshots, an offline
+payment, the initial order event, cart closure, and `order.created` outbox event
+in one transaction. `Idempotency-Key` is mandatory for checkout and is scoped to
+the resolved business with a 24-hour expiry.
+
+Phase 3 supports cash, card-on-delivery, and pay-at-restaurant only. The payment
+adapter boundary is present, but no online provider or external payment call is
+made. Restaurant order state transitions remain Core API mutations and are
+restricted by role.
+
+### Consequences
+
+Retries return the stored order even after the original cart is closed, client
+totals and payment amounts cannot alter the server result, and external side
+effects can be added later through the outbox without blocking checkout.

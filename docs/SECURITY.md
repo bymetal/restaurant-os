@@ -23,3 +23,7 @@
 - Cart item prices are server-derived and stored as snapshots. Client-provided
   prices are ignored, inactive products are rejected, and modifier min/max
   rules are enforced in Core API code.
+- Checkout requires an `Idempotency-Key`, locks the cart, recomputes all totals
+  from current database state, and stores immutable order item snapshots. Order
+  reads and state transitions are filtered by the authenticated business and
+  role-checked.

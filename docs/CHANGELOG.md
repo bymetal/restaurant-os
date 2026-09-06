@@ -10,3 +10,5 @@
   and branch endpoints, refresh-token rotation, and super-admin bootstrap.
 - Added Phase 2 menu, product variants, modifiers, branch availability, public
   storefront reads, Redis rate limiting, and server-side cart snapshots.
+- Added Phase 3 checkout, customer/address snapshots, offline payment adapter,
+  order state machine, order events, and tenant-scoped order operations.

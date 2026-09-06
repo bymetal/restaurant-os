@@ -17,6 +17,7 @@ import { ApiError } from "./errors.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerPlatformRoutes } from "./routes/platform.js";
 import { registerMenuRoutes } from "./routes/menu.js";
+import { registerOrderRoutes } from "./routes/orders.js";
 import { registerPublicRoutes } from "./routes/public.js";
 import { registerTenantRoutes } from "./routes/tenant.js";
 
@@ -57,6 +58,7 @@ export function buildApp(
   registerPlatformRoutes(app, dependencies.pool);
   registerTenantRoutes(app, dependencies.pool);
   registerMenuRoutes(app, dependencies.pool);
+  registerOrderRoutes(app, dependencies.pool);
   registerPublicRoutes(
     app,
     dependencies.pool,

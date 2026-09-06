@@ -55,5 +55,6 @@ added. Schema changes must be represented by a new ordered SQL migration.
 - `packages/domain`: framework-independent domain types
 - `packages/db`: PostgreSQL client and migrations
 - `packages/auth`: password, JWT, and anonymous storefront session primitives
+- `packages/integrations`: provider boundaries, currently including offline payments
 - `docs/`: architecture, security, deployment, and decision records
 - `n8n/workflows/`: versioned automation workflow boundary

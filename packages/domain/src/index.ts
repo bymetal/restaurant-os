@@ -22,6 +22,8 @@ export const permissionKeys = [
   "business:branch:create",
   "business:menu:read",
   "business:menu:write",
+  "business:order:read",
+  "business:order:update",
   "business:user:read",
   "business:user:role:update"
 ] as const;
@@ -46,3 +48,17 @@ export {
   calculateCartUnitPrice,
   type PriceSnapshot
 } from "./pricing.js";
+export {
+  assertOrderTransition,
+  canTransitionOrder,
+  orderStatuses,
+  orderTransitions,
+  type FulfillmentType,
+  type OrderStatus
+} from "./order.js";
+export {
+  calculateOrderTotals,
+  type OrderTotals,
+  type OrderTotalsInput
+} from "./totals.js";
+export { calculateDeliveryFee, type DeliveryFeeInput } from "./delivery.js";

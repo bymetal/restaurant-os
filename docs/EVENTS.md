@@ -6,3 +6,8 @@ provider dispatchers will be added in the integration phase.
 Events are written in the same transaction as the state change. Delivery must
 be retryable and idempotent, and external providers must never be called as a
 required step before the transaction commits.
+
+Phase 3 emits `order.created` when checkout commits and
+`order.status_changed` for every valid order transition. Each payload contains
+the order aggregate ID and is written in the same transaction as the order
+mutation.

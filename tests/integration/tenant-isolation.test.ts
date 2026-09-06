@@ -17,7 +17,7 @@ describeDatabase("tenant isolation", () => {
     const { createDatabasePool } = await import("@restaurant-os/db");
     pool = createDatabasePool(databaseUrl as string);
     await runMigrations(pool);
-    await pool.query("TRUNCATE audit_logs, outbox_events, refresh_tokens, business_users, user_credentials, branches, businesses, platform_users RESTART IDENTITY CASCADE");
+    await pool.query("TRUNCATE audit_logs, outbox_events, idempotency_keys, refresh_tokens, business_users, user_credentials, branches, businesses, platform_users RESTART IDENTITY CASCADE");
 
     const passwordHash = await hashPassword("owner-password-123");
     const client = await pool.connect();
@@ -47,7 +47,7 @@ describeDatabase("tenant isolation", () => {
         const userId = userResult.rows[0].id;
         await client.query(`INSERT INTO user_credentials (user_id, password_hash) VALUES ($1, $2)`, [userId, passwordHash]);
         await client.query(`INSERT INTO business_users (business_id, user_id, role_id) VALUES ($1, $2, $3)`, [businessId, userId, ownerRole.rows[0].id]);
-        await client.query(`INSERT INTO branches (business_id, name) VALUES ($1, $2)`, [businessId, `Branch ${index + 1}`]);
+        await client.query(`INSERT INTO branches (business_id, name, slug) VALUES ($1, $2, $3)`, [businessId, `Branch ${index + 1}`, `branch-${index + 1}`]);
       }
       await client.query("COMMIT");
     } catch (error) {

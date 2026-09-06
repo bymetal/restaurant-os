@@ -18,7 +18,7 @@ describeDatabase("menu and public storefront", () => {
     pool = createDatabasePool(databaseUrl as string);
     await runMigrations(pool);
     await pool.query(
-      "TRUNCATE cart_item_modifiers, cart_items, carts, product_branch_availability, modifiers, modifier_groups, product_variants, products, categories, audit_logs, outbox_events, refresh_tokens, business_users, user_credentials, branches, businesses, platform_users RESTART IDENTITY CASCADE"
+      "TRUNCATE cart_item_modifiers, cart_items, carts, product_branch_availability, modifiers, modifier_groups, product_variants, products, categories, audit_logs, outbox_events, idempotency_keys, refresh_tokens, business_users, user_credentials, branches, businesses, platform_users RESTART IDENTITY CASCADE"
     );
     const business = await pool.query<{ id: string }>(
       `INSERT INTO businesses (name, slug) VALUES ('Menu Tenant', 'menu-tenant') RETURNING id`

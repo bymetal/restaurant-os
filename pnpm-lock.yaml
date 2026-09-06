@@ -59,6 +59,9 @@ importers:
       '@restaurant-os/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@restaurant-os/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
       fastify:
         specifier: ^5.2.1
         version: 5.12.3
@@ -145,6 +148,8 @@ importers:
         version: 4.23.13
 
   packages/domain: {}
+
+  packages/integrations: {}
 
 packages:
 

@@ -546,22 +546,34 @@ export async function addCartItem(
     if (idempotencyKey) {
       const inserted = await client.query<{ id: string }>(
         `
-          INSERT INTO idempotency_keys (business_id, scope, key, request_hash)
-          VALUES ($1, 'storefront.cart.add', $2, $3)
+          INSERT INTO idempotency_keys (business_id, scope, key, request_hash, expires_at)
+          VALUES ($1, 'storefront.cart.add', $2, $3, now() + interval '24 hours')
           ON CONFLICT (business_id, scope, key) DO NOTHING
           RETURNING id
         `,
         [cart.businessId, idempotencyKey, requestHash]
       );
       if (inserted.rows.length === 0) {
-        const existing = await client.query<{ responseBody: CartResponse | null }>(
-          `SELECT response_body AS "responseBody" FROM idempotency_keys WHERE business_id = $1 AND scope = 'storefront.cart.add' AND key = $2 FOR UPDATE`,
+        const existing = await client.query<{ requestHash: string; responseBody: CartResponse | null; expiresAt: Date | null }>(
+          `SELECT request_hash AS "requestHash", response_body AS "responseBody", expires_at AS "expiresAt" FROM idempotency_keys WHERE business_id = $1 AND scope = 'storefront.cart.add' AND key = $2 FOR UPDATE`,
           [cart.businessId, idempotencyKey]
         );
-        const body = existing.rows[0]?.responseBody;
-        if (!body) throw new ApiError(409, "IDEMPOTENCY_IN_PROGRESS", "This request is already being processed.");
-        await client.query("COMMIT");
-        return { replay: true, cart: body };
+        const row = existing.rows[0];
+        if (!row) throw new ApiError(409, "IDEMPOTENCY_IN_PROGRESS", "This request is already being processed.");
+        if (row.requestHash !== requestHash) {
+          throw new ApiError(422, "IDEMPOTENCY_KEY_REUSED", "Idempotency key was used with a different request.");
+        }
+        if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) {
+          await client.query(
+            `UPDATE idempotency_keys SET request_hash = $3, response_status = NULL, response_body = NULL, expires_at = now() + interval '24 hours' WHERE business_id = $1 AND scope = 'storefront.cart.add' AND key = $2`,
+            [cart.businessId, idempotencyKey, requestHash]
+          );
+        } else {
+          const body = row.responseBody;
+          if (!body) throw new ApiError(409, "IDEMPOTENCY_IN_PROGRESS", "This request is already being processed.");
+          await client.query("COMMIT");
+          return { replay: true, cart: body };
+        }
       }
     }
 

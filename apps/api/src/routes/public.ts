@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import type { Redis } from "ioredis";
 import {
   addCartItemRequestSchema,
+  checkoutRequestSchema,
   createCartRequestSchema,
   publicMenuQuerySchema
 } from "@restaurant-os/contracts";
@@ -20,6 +21,7 @@ import {
   getMenu,
   getPublicRestaurant
 } from "../repositories/menu.js";
+import { checkoutOrder } from "../repositories/orders.js";
 import { parseInput } from "../validation.js";
 import { createRateLimit } from "../rate-limit.js";
 
@@ -93,9 +95,33 @@ export function registerPublicRoutes(
       restaurant.id,
       input,
       idempotencyKey,
-      createRequestHash(input)
+      createRequestHash({ sessionHash: hashStorefrontSession(session), input })
     );
     return result.cart;
+  });
+
+  app.post("/v1/public/restaurants/:slug/checkout", { preHandler: [writeLimit] }, async (request, reply) => {
+    assertAllowedOrigin(request, allowedOrigins);
+    const { slug } = request.params as { slug: string };
+    const session = request.cookies[storefrontCookieName];
+    if (!session) throw new ApiError(401, "CART_SESSION_MISSING", "Cart session is required.");
+    const idempotencyKey = headerValue(request, "idempotency-key");
+    if (!idempotencyKey || idempotencyKey.length < 8 || idempotencyKey.length > 100) {
+      throw new ApiError(400, "VALIDATION_ERROR", "Idempotency-Key header must contain 8 to 100 characters.");
+    }
+    const input = parseInput(checkoutRequestSchema, request.body);
+    const restaurant = await getPublicRestaurant(pool, slug);
+    if (!restaurant) throw new ApiError(404, "NOT_FOUND", "Restaurant not found.");
+    const sessionHash = hashStorefrontSession(session);
+    const result = await checkoutOrder(
+      pool,
+      sessionHash,
+      restaurant.id,
+      input,
+      idempotencyKey,
+      createRequestHash({ sessionHash, input })
+    );
+    return reply.code(result.replay ? 200 : 201).send({ order: result.order });
   });
 }
 

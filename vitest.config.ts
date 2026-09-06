@@ -8,7 +8,8 @@ export default defineConfig({
       "@restaurant-os/config": fileURLToPath(new URL("./packages/config/src/index.ts", import.meta.url)),
       "@restaurant-os/contracts": fileURLToPath(new URL("./packages/contracts/src/index.ts", import.meta.url)),
       "@restaurant-os/db": fileURLToPath(new URL("./packages/db/src/index.ts", import.meta.url)),
-      "@restaurant-os/domain": fileURLToPath(new URL("./packages/domain/src/index.ts", import.meta.url))
+      "@restaurant-os/domain": fileURLToPath(new URL("./packages/domain/src/index.ts", import.meta.url)),
+      "@restaurant-os/integrations": fileURLToPath(new URL("./packages/integrations/src/index.ts", import.meta.url))
     }
   },
   test: {
