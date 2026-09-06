@@ -14,16 +14,23 @@ const authConfig = {
   allowedOrigins: ["http://127.0.0.1:4000"]
 };
 
+const baseDependencies = {
+  pool: {} as Pool,
+  redis: {} as Redis,
+  publicRateLimitPerMinute: 120,
+  appUrl: "http://127.0.0.1:4000",
+  appEncryptionKey: "test-app-encryption-key-test-app-encryption-key",
+  evolutionConfig: { baseUrl: "http://127.0.0.1:8080", globalApiKey: "test-evolution-key" },
+  authConfig
+};
+
 describe("API health endpoints", () => {
   it("reports liveness without infrastructure dependencies", async () => {
     const app = buildApp(
       {
+        ...baseDependencies,
         checkDatabase: async () => undefined,
-        checkRedis: async () => undefined,
-        pool: {} as Pool,
-        redis: {} as Redis,
-        publicRateLimitPerMinute: 120,
-        authConfig
+        checkRedis: async () => undefined
       },
       { logger: false }
     );
@@ -38,14 +45,11 @@ describe("API health endpoints", () => {
   it("returns 503 when a readiness dependency is down", async () => {
     const app = buildApp(
       {
+        ...baseDependencies,
         checkDatabase: async () => {
           throw new Error("database unavailable");
         },
-        checkRedis: async () => undefined,
-        pool: {} as Pool,
-        redis: {} as Redis,
-        publicRateLimitPerMinute: 120,
-        authConfig
+        checkRedis: async () => undefined
       },
       { logger: false }
     );
@@ -63,12 +67,9 @@ describe("API health endpoints", () => {
   it("rejects protected routes without an access token", async () => {
     const app = buildApp(
       {
+        ...baseDependencies,
         checkDatabase: async () => undefined,
-        checkRedis: async () => undefined,
-        pool: {} as Pool,
-        redis: {} as Redis,
-        publicRateLimitPerMinute: 120,
-        authConfig
+        checkRedis: async () => undefined
       },
       { logger: false }
     );

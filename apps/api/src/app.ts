@@ -8,6 +8,7 @@ import cors from "@fastify/cors";
 import type { Pool } from "pg";
 import type { Redis } from "ioredis";
 import type { AuthConfig } from "@restaurant-os/auth";
+import type { EvolutionConfig } from "@restaurant-os/integrations";
 import {
   liveHealthSchema,
   readyHealthSchema,
@@ -21,11 +22,14 @@ import { registerCampaignRoutes } from "./routes/campaigns.js";
 import { registerBusinessAnalyticsRoutes } from "./routes/business-analytics.js";
 import { registerPlatformAnalyticsRoutes } from "./routes/platform-analytics.js";
 import { registerCustomerRoutes } from "./routes/customers.js";
+import { registerEvolutionRoutes } from "./routes/evolution.js";
 import { registerLoyaltyRoutes } from "./routes/loyalty.js";
 import { registerMenuRoutes } from "./routes/menu.js";
 import { registerOrderRoutes } from "./routes/orders.js";
 import { registerPublicRoutes } from "./routes/public.js";
+import { registerQrRoutes } from "./routes/qr.js";
 import { registerTenantRoutes } from "./routes/tenant.js";
+import { registerWebhookRoutes } from "./routes/webhooks.js";
 
 export interface HealthDependencies {
   checkDatabase: () => Promise<void>;
@@ -42,6 +46,9 @@ export interface AppDependencies extends HealthDependencies {
   redis: Redis;
   publicRateLimitPerMinute: number;
   authConfig: AuthConfig;
+  appUrl: string;
+  appEncryptionKey: string;
+  evolutionConfig: EvolutionConfig;
 }
 
 export function buildApp(
@@ -74,6 +81,9 @@ export function buildApp(
   registerCampaignRoutes(app, dependencies.pool);
   registerBusinessAnalyticsRoutes(app, dependencies.pool);
   registerPlatformAnalyticsRoutes(app, dependencies.pool);
+  registerEvolutionRoutes(app, dependencies.pool, dependencies.evolutionConfig, dependencies.appUrl, dependencies.appEncryptionKey);
+  registerQrRoutes(app, dependencies.pool);
+  registerWebhookRoutes(app, dependencies.pool, dependencies.redis);
   registerPublicRoutes(
     app,
     dependencies.pool,

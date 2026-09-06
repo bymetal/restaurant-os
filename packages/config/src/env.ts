@@ -31,13 +31,17 @@ export const runtimeEnvSchema = z
     JWT_SECRET: z.string().min(32).default(developmentSecret),
     REFRESH_TOKEN_SECRET: z.string().min(32).default(developmentSecret),
     PASSWORD_RESET_SECRET: z.string().min(32).default(developmentSecret),
-    APP_ENCRYPTION_KEY: z.string().min(32).default(developmentSecret)
+    APP_ENCRYPTION_KEY: z.string().min(32).default(developmentSecret),
+    EVOLUTION_BASE_URL: z.string().url().default("http://127.0.0.1:8080"),
+    EVOLUTION_GLOBAL_API_KEY: z.string().min(1).default("dev-only-evolution-key"),
+    N8N_BASE_URL: z.string().url().default("http://127.0.0.1:5678"),
+    N8N_INBOUND_SECRET: z.string().min(16).default(developmentSecret)
   })
   .superRefine((env, context) => {
     if (env.NODE_ENV !== "production") return;
 
     for (const [name, value] of Object.entries(env)) {
-      if (name.endsWith("SECRET") || name === "APP_ENCRYPTION_KEY") {
+      if (name.endsWith("SECRET") || name === "APP_ENCRYPTION_KEY" || name === "EVOLUTION_GLOBAL_API_KEY") {
         if (typeof value !== "string") continue;
         if (value.includes("change-me") || value.startsWith("dev-only")) {
           context.addIssue({

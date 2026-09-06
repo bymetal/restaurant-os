@@ -50,9 +50,11 @@ export {
 } from "./orders.js";
 export {
   customerIdParamsSchema,
+  issueLoyaltyClaimTokenRequestSchema,
   loyaltyAdjustRequestSchema,
   upsertLoyaltyProgramRequestSchema,
   type CustomerIdParams,
+  type IssueLoyaltyClaimTokenRequest,
   type LoyaltyAdjustRequest,
   type UpsertLoyaltyProgramRequest
 } from "./loyalty.js";
@@ -94,3 +96,9 @@ export {
   type CreateCampaignRequest,
   type UpdateCampaignRequest
 } from "./campaigns.js";
+export {
+  createQrCodeRequestSchema,
+  qrCodeTypeSchema,
+  type CreateQrCodeRequest,
+  type QrCodeType
+} from "./qr.js";

@@ -48,6 +48,16 @@ queryable tables that start empty and stay empty until a future
 Evolution/printer-agent/n8n phase writes to them — the platform dashboard
 never fabricates a connection status or issue count.
 
+`0010_evolution_whatsapp.sql` adds the WhatsApp/Evolution schema:
+`integration_connections` (one row per business+provider, encrypted instance
+credential, connection/webhook state — `integration_health` is kept as a
+lighter-weight status cache updated whenever this table's state changes),
+`customer_consents` (TRANSACTIONAL/MARKETING/LOYALTY, latest row per type
+wins, opt-out never auto-reverses), `loyalty_claim_tokens` (single-use,
+hash-stored, atomically consumed via `UPDATE ... WHERE consumed_at IS NULL`),
+`webhook_events` (dedupe by `connection_id`+`provider_event_id`), `qr_codes`,
+and `acquisition_events`. See ADR-009 for the full design rationale.
+
 Apply migrations with:
 
 ```powershell

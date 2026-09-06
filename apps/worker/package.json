@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "@restaurant-os/config": "workspace:*",
-    "@restaurant-os/db": "workspace:*"
+    "@restaurant-os/db": "workspace:*",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
+    "@types/pg": "^8.11.10",
     "tsx": "^4.19.2"
   }
 }

@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import type { Redis } from "ioredis";
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { hashPassword } from "@restaurant-os/auth";
 import { runMigrations } from "@restaurant-os/db";
@@ -62,6 +63,11 @@ describeDatabase("tenant isolation", () => {
         checkDatabase: async () => undefined,
         checkRedis: async () => undefined,
         pool,
+        redis: {} as Redis,
+        publicRateLimitPerMinute: 120,
+        appUrl: "http://127.0.0.1:4000",
+        appEncryptionKey: "integration-app-encryption-key-integration",
+        evolutionConfig: { baseUrl: "http://127.0.0.1:8080", globalApiKey: "integration-evolution-key" },
         authConfig: {
           jwtSecret: "integration-jwt-secret-integration-jwt-secret",
           jwtIssuer: "integration-issuer",

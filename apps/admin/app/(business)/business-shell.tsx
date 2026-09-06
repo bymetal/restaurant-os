@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Megaphone, ShoppingCart, Users } from "lucide-react";
+import { LayoutDashboard, Megaphone, MessageCircle, ShoppingCart, Users } from "lucide-react";
 import { Avatar, Sidebar, TopBar, type SidebarItem } from "@restaurant-os/ui";
 import { useAuth } from "../../lib/auth-context";
 
@@ -11,7 +11,8 @@ const navItems: SidebarItem[] = [
   { href: "/dashboard", label: "Genel Bakış", icon: <LayoutDashboard size={16} /> },
   { href: "/orders", label: "Siparişler", icon: <ShoppingCart size={16} /> },
   { href: "/customers", label: "Müşteriler", icon: <Users size={16} /> },
-  { href: "/campaigns", label: "Kampanyalar", icon: <Megaphone size={16} /> }
+  { href: "/campaigns", label: "Kampanyalar", icon: <Megaphone size={16} /> },
+  { href: "/whatsapp", label: "WhatsApp", icon: <MessageCircle size={16} /> }
 ];
 
 const roleLabels: Record<string, string> = {

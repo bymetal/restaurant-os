@@ -264,3 +264,85 @@ super-admin dashboard already reads and displays them correctly, no schema
 migration required. Anyone auditing the super-admin dashboard's numbers can
 trace every figure back to a real row in the database; nothing is a
 placeholder constant.
+
+## ADR-009 - Evolution/WhatsApp Integration, QR Acquisition, And Outbox-Driven Notifications
+
+- Date: 2026-09-06
+- Status: Accepted
+
+### Context
+
+ADR-008 deliberately left `integration_health`/`system_issues` empty because
+no WhatsApp provider was wired up. The master plan names Evolution API (a
+self-hosted, Baileys-based WhatsApp gateway, not Meta's official Cloud API)
+as the committed provider. A comparable official-API alternative (Zernio)
+was researched and presented, but the user chose to stay with the original
+Evolution API decision rather than switch providers. No live Evolution
+instance or n8n instance exists in this environment, so this phase is coded
+against Evolution's documented v2 REST/webhook contract and must be verified
+against a real deployment before going live (consistent with AGENTS.md's
+"verify the deployed provider's endpoints... in staging" instruction).
+
+### Decision
+
+- **Adapter boundary**: `packages/integrations/src/evolution.ts` (`EvolutionClient`)
+  mirrors the existing `payment.ts` adapter pattern — a thin typed HTTP
+  client, no business logic. `apps/api/src/repositories/evolution.ts` owns
+  the connection lifecycle (connect/status/disconnect) against
+  `integration_connections`, encrypting the instance credential at rest with
+  a new `packages/auth/src/encryption.ts` (AES-256-GCM, keyed by
+  `APP_ENCRYPTION_KEY`) rather than storing it in plaintext.
+- **Webhook ingestion**: `POST /v1/webhooks/evolution/:connectionId` is
+  public but rate-limited; `apps/api/src/repositories/webhooks.ts` dedupes
+  by `(connection_id, provider_event_id)` in `webhook_events` before doing
+  any work, matching the idempotent-webhook requirement in AGENTS.md. Inbound
+  text is parsed by `@restaurant-os/domain`'s `parseInboundCommand`
+  (`KATIL {token}` acquisition, `SADAKAT {token}` loyalty claim) and
+  `isOptOutMessage` (STOP/IPTAL/"mesaj istemiyorum"), keeping the WhatsApp
+  wire-format parsing in one small, unit-tested place.
+- **Loyalty claim tokens**: `loyalty_claim_tokens` is deliberately a
+  separate table from the existing `loyalty_transactions` idempotency-key
+  mechanism (ADR-005), because claim tokens are pre-issued (staff generates
+  a QR before the customer ever messages) and must be consumed atomically
+  by a single `UPDATE ... WHERE consumed_at IS NULL RETURNING id` — the
+  exact race-condition-proof pattern the master plan specifies. A second
+  consumption attempt returns the master plan's own example error code,
+  `LOYALTY_TOKEN_ALREADY_USED`.
+- **Consent is not inferred from messaging**: sending `KATIL` grants only
+  `TRANSACTIONAL` consent; `MARKETING` consent is a separate row an opt-out
+  can withdraw but never silently re-grant (a new legitimate opt-in event is
+  required), per master plan §13.
+- **Outbound messaging goes through the outbox, not synchronously from the
+  webhook handler or from order/loyalty repositories.** `apps/worker`
+  (previously a heartbeat-only stub) now polls `outbox_events` with
+  `FOR UPDATE SKIP LOCKED`, resolves the connected instance + customer
+  phone, and forwards notifiable events (`order.status_changed`,
+  `loyalty.stamp_earned`, `customer.whatsapp_joined`) to n8n over HTTP with
+  a shared-secret header; n8n picks a message template and calls Evolution's
+  `sendText` directly. A poisoned event that fails past `MAX_ATTEMPTS` (10)
+  is marked published anyway so it can't block the queue forever, with its
+  `last_error` retained for debugging.
+- **n8n is new infrastructure, added but not yet live**: `docker-compose.coolify.yml`
+  gained an `n8n` service (own volume, meant to get its own subdomain and
+  basic-auth like `admin`/`storefront` did). `n8n/workflows/whatsapp-notifications.json`
+  is a hand-authored workflow export (webhook → secret check → template →
+  Evolution HTTP call) — per master plan §81, the intended long-term
+  practice is to build/edit workflows in n8n's own UI and re-export, not
+  hand-edit JSON, so this file is a starting point to import and verify
+  against a real n8n version.
+
+### Consequences
+
+WhatsApp acquisition, loyalty claims, and outbound order/loyalty
+notifications are fully coded and covered by `tests/integration/evolution.test.ts`
+(cross-tenant isolation, webhook dedupe, claim-token reuse rejection, opt-out
+handling), but three things remain before any of this is truly live: (1) a
+real Evolution instance must exist and its actual endpoint/webhook payload
+shapes verified against `evolution.ts`'s assumptions, (2) n8n needs a domain,
+basic auth, and the workflow imported/activated, (3) `EVOLUTION_BASE_URL`/
+`EVOLUTION_GLOBAL_API_KEY`/`N8N_BASE_URL`/`N8N_INBOUND_SECRET` need real
+values in Coolify (they currently default to local placeholders). Until
+then, `POST /v1/integrations/whatsapp/connect` will fail against a
+nonexistent Evolution server — this is the same "real schema, not yet
+connected to a live provider" posture ADR-008 established for billing and
+integration health.

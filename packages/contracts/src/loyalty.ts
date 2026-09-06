@@ -19,6 +19,13 @@ export const customerIdParamsSchema = z.object({
   customerId: z.string().uuid()
 });
 
+export const issueLoyaltyClaimTokenRequestSchema = z.object({
+  branchId: z.string().uuid().optional(),
+  orderId: z.string().uuid().optional(),
+  ttlMinutes: z.number().int().min(1).max(1_440).optional()
+});
+
 export type UpsertLoyaltyProgramRequest = z.infer<typeof upsertLoyaltyProgramRequestSchema>;
 export type LoyaltyAdjustRequest = z.infer<typeof loyaltyAdjustRequestSchema>;
 export type CustomerIdParams = z.infer<typeof customerIdParamsSchema>;
+export type IssueLoyaltyClaimTokenRequest = z.infer<typeof issueLoyaltyClaimTokenRequestSchema>;

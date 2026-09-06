@@ -1,0 +1,87 @@
+{
+  "name": "Restaurant OS - WhatsApp Notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "restaurant-os-notify",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Outbox Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "restaurant-os-notify"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "secret-check",
+              "leftValue": "={{$json.headers['x-inbound-secret']}}",
+              "rightValue": "={{$env.N8N_INBOUND_SECRET}}",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "verify-secret",
+      "name": "Verify Inbound Secret",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body;\nconst eventType = body.eventType;\nconst payload = body.payload || {};\n\nlet text = null;\nif (eventType === 'customer.whatsapp_joined') {\n  text = '🍕 Hoş geldin! Artık buradan sipariş verebilir, sadakat puanlarını takip edebilir ve sana özel fırsatlardan haberdar olabilirsin.';\n} else if (eventType === 'loyalty.stamp_earned') {\n  text = `⭐ Yeni damga kazandın! Güncel bakiyen: ${payload.balance ?? '?'} damga.`;\n} else if (eventType === 'order.status_changed') {\n  const statusText = {\n    ACCEPTED: 'Siparişin kabul edildi ✅',\n    PREPARING: 'Siparişin hazırlanıyor 👨‍🍳',\n    READY: 'Siparişin hazır 🎉',\n    OUT_FOR_DELIVERY: 'Siparişin yola çıktı 🚗',\n    DELIVERED: 'Siparişin teslim edildi. Afiyet olsun! 😊',\n    REJECTED: 'Siparişin maalesef kabul edilemedi.',\n    CANCELLED: 'Siparişin iptal edildi.'\n  };\n  text = statusText[payload.toStatus] || null;\n}\n\nreturn [{ json: { instanceName: body.instanceName, phone: body.phone, text } }];"
+      },
+      "id": "build-message",
+      "name": "Build Message Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EVOLUTION_BASE_URL}}/message/sendText/{{$json.instanceName}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "apikey", "value": "={{$env.EVOLUTION_GLOBAL_API_KEY}}" }]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "number", "value": "={{$json.phone}}" },
+            { "name": "text", "value": "={{$json.text}}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-whatsapp",
+      "name": "Send WhatsApp Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 220]
+    }
+  ],
+  "connections": {
+    "Outbox Webhook": {
+      "main": [[{ "node": "Verify Inbound Secret", "type": "main", "index": 0 }]]
+    },
+    "Verify Inbound Secret": {
+      "main": [[{ "node": "Build Message Text", "type": "main", "index": 0 }], []]
+    },
+    "Build Message Text": {
+      "main": [[{ "node": "Send WhatsApp Text", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}

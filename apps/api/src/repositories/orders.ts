@@ -1,4 +1,4 @@
-import { calculateCartLineTotal, calculateCartUnitPrice, calculateDeliveryFee, calculateOrderTotals, canTransitionOrder, type FulfillmentType, type OrderStatus, isProductAvailable, type ProductAvailability, type WeeklySchedule } from "@restaurant-os/domain";
+import { calculateCartLineTotal, calculateCartUnitPrice, calculateDeliveryFee, calculateOrderTotals, canTransitionOrder, type FulfillmentType, InvalidPhoneError, type OrderStatus, isProductAvailable, normalizePhone as normalizePhoneShared, type ProductAvailability, type WeeklySchedule } from "@restaurant-os/domain";
 import { OfflinePaymentAdapter } from "@restaurant-os/integrations";
 import type { CheckoutRequest, OrderListQuery, OrderTransitionRequest } from "@restaurant-os/contracts";
 import type { Pool, PoolClient } from "pg";
@@ -647,9 +647,12 @@ async function assertBranch(pool: Pool, businessId: string, branchId: string): P
 }
 
 function normalizePhone(input: string): string {
-  const digits = input.replace(/\D/g, "");
-  if (digits.length < 7 || digits.length > 20) throw new ApiError(400, "VALIDATION_ERROR", "Phone number is invalid.");
-  return digits.startsWith("00") ? digits.slice(2) : digits;
+  try {
+    return normalizePhoneShared(input);
+  } catch (error) {
+    if (error instanceof InvalidPhoneError) throw new ApiError(400, "VALIDATION_ERROR", error.message);
+    throw error;
+  }
 }
 
 function roleCanTransition(role: string, toStatus: OrderTransitionRequest["toStatus"]): boolean {

@@ -66,6 +66,9 @@ describeDatabase("customers", () => {
         pool,
         redis: { status: "ready", incr: async () => 1, expire: async () => 1 } as never,
         publicRateLimitPerMinute: 120,
+        appUrl: "http://127.0.0.1:4000",
+        appEncryptionKey: "integration-app-encryption-key-integration",
+        evolutionConfig: { baseUrl: "http://127.0.0.1:8080", globalApiKey: "integration-evolution-key" },
         authConfig: {
           jwtSecret: "integration-jwt-secret-integration-jwt-secret",
           jwtIssuer: "integration-issuer",

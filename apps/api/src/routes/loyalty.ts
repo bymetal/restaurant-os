@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import {
   customerIdParamsSchema,
+  issueLoyaltyClaimTokenRequestSchema,
   loyaltyAdjustRequestSchema,
   upsertLoyaltyProgramRequestSchema
 } from "@restaurant-os/contracts";
@@ -11,6 +12,7 @@ import {
   assertCustomerExists,
   getActiveProgram,
   getCustomerLoyaltyStatus,
+  issueLoyaltyClaimToken,
   redeemLoyalty,
   upsertProgram
 } from "../repositories/loyalty.js";
@@ -83,6 +85,22 @@ export function registerLoyaltyRoutes(app: FastifyInstance, pool: Pool): void {
         userAgent: request.headers["user-agent"]
       });
       return { loyalty: result.account };
+    }
+  );
+
+  app.post(
+    "/v1/loyalty/claim-tokens",
+    { preHandler: [app.authenticate, app.requireScope("business"), app.requirePermission("business:qr:write")] },
+    async (request, reply) => {
+      const context = requireBusiness(request);
+      const input = parseInput(issueLoyaltyClaimTokenRequestSchema, request.body ?? {});
+      const result = await issueLoyaltyClaimToken(pool, context.businessId, input, {
+        userId: context.userId,
+        role: context.role,
+        ipAddress: request.ip,
+        userAgent: request.headers["user-agent"]
+      });
+      return reply.code(201).send({ claimToken: result });
     }
   );
 }

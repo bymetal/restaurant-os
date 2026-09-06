@@ -36,7 +36,10 @@ export const permissionKeys = [
   "business:analytics:read",
   "platform:analytics:read",
   "platform:subscription:write",
-  "platform:system_issue:update"
+  "platform:system_issue:update",
+  "business:integration:read",
+  "business:integration:write",
+  "business:qr:write"
 ] as const;
 
 export type PermissionKey = (typeof permissionKeys)[number];
@@ -88,3 +91,13 @@ export {
   type CampaignDiscountRule,
   type CampaignStatus
 } from "./campaign.js";
+export { InvalidPhoneError, normalizePhone } from "./customer.js";
+export {
+  consentStatuses,
+  consentTypes,
+  isOptOutMessage,
+  parseInboundCommand,
+  type ConsentStatus,
+  type ConsentType,
+  type ParsedInboundCommand
+} from "./consent.js";

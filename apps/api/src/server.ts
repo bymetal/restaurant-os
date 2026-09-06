@@ -19,6 +19,12 @@ const app = buildApp(
     pool: database,
     redis,
     publicRateLimitPerMinute: env.PUBLIC_RATE_LIMIT_PER_MINUTE,
+    appUrl: env.APP_URL,
+    appEncryptionKey: env.APP_ENCRYPTION_KEY,
+    evolutionConfig: {
+      baseUrl: env.EVOLUTION_BASE_URL,
+      globalApiKey: env.EVOLUTION_GLOBAL_API_KEY
+    },
     authConfig: {
       jwtSecret: env.JWT_SECRET,
       jwtIssuer: env.JWT_ISSUER,

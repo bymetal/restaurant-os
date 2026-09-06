@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import {
   assertRedeemable,
   calculateStampsEarned,
@@ -295,6 +296,80 @@ export async function grantOrderStamp(
     `INSERT INTO outbox_events (business_id, event_type, aggregate_type, aggregate_id, payload) VALUES ($1, 'loyalty.stamp_earned', 'loyalty_account', $2, $3::jsonb)`,
     [businessId, account.id, JSON.stringify({ customerId: order.customerId, orderId: order.id, stamps, balance: nextBalance })]
   );
+}
+
+export interface LoyaltyClaimTokenResult {
+  token: string;
+  expiresAt: string;
+}
+
+export async function issueLoyaltyClaimToken(
+  pool: Pool,
+  businessId: string,
+  input: { branchId?: string | undefined; orderId?: string | undefined; ttlMinutes?: number | undefined },
+  actor: Actor
+): Promise<LoyaltyClaimTokenResult> {
+  const token = randomBytes(24).toString("base64url");
+  const tokenHash = hashClaimToken(token);
+  const ttlMinutes = input.ttlMinutes ?? 15;
+  const expiresAt = new Date(Date.now() + ttlMinutes * 60_000);
+  await pool.query(
+    `INSERT INTO loyalty_claim_tokens (business_id, branch_id, order_id, token_hash, created_by, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [businessId, input.branchId ?? null, input.orderId ?? null, tokenHash, actor.userId, expiresAt]
+  );
+  return { token, expiresAt: expiresAt.toISOString() };
+}
+
+/**
+ * Atomically consumes a WhatsApp loyalty claim token and grants a stamp.
+ * Must run inside the caller's transaction (see grantOrderStamp for the
+ * same pattern) so webhook processing stays all-or-nothing.
+ */
+export async function consumeLoyaltyClaimToken(
+  client: PoolClient,
+  businessId: string,
+  token: string,
+  customerId: string
+): Promise<{ stamps: number; balance: number }> {
+  const tokenHash = hashClaimToken(token);
+  const claimed = await client.query<{ id: string; branchId: string | null }>(
+    `UPDATE loyalty_claim_tokens
+     SET consumed_at = now(), consumed_by_customer_id = $3
+     WHERE business_id = $1 AND token_hash = $2 AND consumed_at IS NULL AND expires_at > now()
+     RETURNING id, branch_id AS "branchId"`,
+    [businessId, tokenHash, customerId]
+  );
+  const claim = claimed.rows[0];
+  if (!claim) throw new ApiError(409, "LOYALTY_TOKEN_ALREADY_USED", "This loyalty token has already been used.");
+
+  const program = await loadActiveProgram(client, businessId);
+  if (!program) throw new ApiError(404, "LOYALTY_PROGRAM_NOT_CONFIGURED", "No active loyalty program is configured.");
+  const account = await lockOrCreateAccount(client, businessId, customerId, program.id);
+  const stamps = program.earnPerOrder;
+  const nextBalance = account.balance + stamps;
+  const idempotencyKey = `claim-token:${claim.id}`;
+  const inserted = await client.query<{ id: string }>(
+    `INSERT INTO loyalty_transactions (business_id, loyalty_account_id, customer_id, branch_id, transaction_type, amount, balance_after, actor_type, idempotency_key)
+     VALUES ($1, $2, $3, $4, 'EARN', $5, $6, 'system', $7)
+     ON CONFLICT (business_id, idempotency_key) DO NOTHING
+     RETURNING id`,
+    [businessId, account.id, customerId, claim.branchId, stamps, nextBalance, idempotencyKey]
+  );
+  if (!inserted.rows[0]) return { stamps: 0, balance: account.balance };
+  await client.query(
+    `UPDATE loyalty_accounts SET balance = $2, lifetime_earned = lifetime_earned + $3, updated_at = now() WHERE id = $1`,
+    [account.id, nextBalance, stamps]
+  );
+  await client.query(
+    `INSERT INTO outbox_events (business_id, event_type, aggregate_type, aggregate_id, payload) VALUES ($1, 'loyalty.stamp_earned', 'loyalty_account', $2, $3::jsonb)`,
+    [businessId, account.id, JSON.stringify({ customerId, stamps, balance: nextBalance, source: "whatsapp_claim" })]
+  );
+  return { stamps, balance: nextBalance };
+}
+
+function hashClaimToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 async function hasExistingTransaction(client: PoolClient, businessId: string, idempotencyKey: string): Promise<boolean> {
