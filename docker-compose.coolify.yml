@@ -52,6 +52,38 @@ services:
       postgres:
         condition: service_healthy
 
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL}"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    expose:
+      - "3000"
+    command: ["pnpm", "--filter", "@restaurant-os/admin", "start"]
+    depends_on:
+      api:
+        condition: service_healthy
+
+  storefront:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL}"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    expose:
+      - "3001"
+    command: ["pnpm", "--filter", "@restaurant-os/storefront", "start"]
+    depends_on:
+      api:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped

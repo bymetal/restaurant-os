@@ -5,11 +5,14 @@ RUN npm install --global pnpm@11.1.2
 
 COPY . .
 RUN pnpm install --frozen-lockfile
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm build
 
 FROM node:22-alpine AS runtime
 
 WORKDIR /app
+RUN npm install --global pnpm@11.1.2
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=4000
