@@ -23,7 +23,7 @@ export function Sidebar({ brand, items, activeHref, footer, linkComponent }: Sid
       <div className="flex items-center gap-2 px-5 py-5">{brand}</div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
         {items.map((item) => {
-          const active = item.href === activeHref;
+          const active = activeHref === item.href || activeHref.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}

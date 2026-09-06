@@ -56,3 +56,41 @@ export {
   type LoyaltyAdjustRequest,
   type UpsertLoyaltyProgramRequest
 } from "./loyalty.js";
+export {
+  customerListQuerySchema,
+  customerNoteRequestSchema,
+  customerTagIdParamsSchema,
+  customerTagRequestSchema,
+  updateCustomerRequestSchema,
+  type CustomerListQuery,
+  type CustomerNoteRequest,
+  type CustomerTagIdParams,
+  type CustomerTagRequest,
+  type UpdateCustomerRequest
+} from "./customers.js";
+export {
+  analyticsBranchQuerySchema,
+  analyticsRangeQuerySchema,
+  type AnalyticsBranchQuery,
+  type AnalyticsRangeQuery
+} from "./analytics.js";
+export {
+  assignSubscriptionRequestSchema,
+  platformAnalyticsRangeQuerySchema,
+  systemIssueIdParamsSchema,
+  type AssignSubscriptionRequest,
+  type PlatformAnalyticsRangeQuery,
+  type SystemIssueIdParams
+} from "./platform-analytics.js";
+export {
+  campaignIdParamsSchema,
+  campaignListQuerySchema,
+  campaignPerformanceQuerySchema,
+  createCampaignRequestSchema,
+  updateCampaignRequestSchema,
+  type CampaignIdParams,
+  type CampaignListQuery,
+  type CampaignPerformanceQuery,
+  type CreateCampaignRequest,
+  type UpdateCampaignRequest
+} from "./campaigns.js";

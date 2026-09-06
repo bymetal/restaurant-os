@@ -3,6 +3,7 @@ import { OfflinePaymentAdapter } from "@restaurant-os/integrations";
 import type { CheckoutRequest, OrderListQuery, OrderTransitionRequest } from "@restaurant-os/contracts";
 import type { Pool, PoolClient } from "pg";
 import { ApiError } from "../errors.js";
+import { resolveCampaignDiscount } from "./campaigns.js";
 import { grantOrderStamp } from "./loyalty.js";
 import { insertAudit, type AuditInput } from "./tenant.js";
 
@@ -165,7 +166,10 @@ export async function checkoutOrder(
     const deliveryFeeMinor = input.fulfillment === "delivery"
       ? await resolveDeliveryFee(client, businessId, cart.branchId, input.address?.district, input.address?.postalCode, subtotalMinor)
       : 0;
-    const totals = calculateOrderTotals({ subtotalMinor, deliveryFeeMinor });
+    const campaignResult = input.couponCode
+      ? await resolveCampaignDiscount(client, businessId, input.couponCode, subtotalMinor)
+      : null;
+    const totals = calculateOrderTotals({ subtotalMinor, deliveryFeeMinor, discountMinor: campaignResult?.discountMinor ?? 0 });
     const customerPhone = normalizePhone(input.customer.phone);
     const customer = await upsertCustomer(client, businessId, customerPhone, input.customer.name);
     const addressSnapshot = input.fulfillment === "delivery" && input.address ? input.address : null;
@@ -179,7 +183,7 @@ export async function checkoutOrder(
           address_snapshot, note, delivery_instructions, items_subtotal_minor,
           delivery_fee_minor, discount_minor, tax_minor, total_minor
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 'PLACED', $8, $9, $10, $11::jsonb, $12, $13, $14, $15, 0, 0, $16)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'PLACED', $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, 0, $17)
         RETURNING id
       `,
       [
@@ -198,11 +202,18 @@ export async function checkoutOrder(
         input.deliveryInstructions ?? null,
         totals.subtotalMinor,
         totals.deliveryFeeMinor,
+        totals.discountMinor,
         totals.totalMinor
       ]
     );
     const order = orderResult.rows[0];
     if (!order) throw new Error("Failed to create order.");
+    if (campaignResult) {
+      await client.query(
+        `INSERT INTO order_adjustments (order_id, business_id, type, amount_minor, campaign_id) VALUES ($1, $2, 'campaign_discount', $3, $4)`,
+        [order.id, businessId, campaignResult.discountMinor, campaignResult.campaignId]
+      );
+    }
     for (const item of snapshots) {
       const itemResult = await client.query<{ id: string }>(
         `
@@ -290,10 +301,11 @@ export async function listOrders(pool: Pool, businessId: string, query: OrderLis
       WHERE business_id = $1
         AND ($2::uuid IS NULL OR branch_id = $2)
         AND ($3::text IS NULL OR status = $3)
+        AND ($5::uuid IS NULL OR customer_id = $5)
       ORDER BY created_at DESC
       LIMIT $4
     `,
-    [businessId, query.branchId ?? null, query.status ?? null, query.limit]
+    [businessId, query.branchId ?? null, query.status ?? null, query.limit, query.customerId ?? null]
   );
   return result.rows;
 }

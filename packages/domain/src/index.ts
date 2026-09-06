@@ -28,7 +28,15 @@ export const permissionKeys = [
   "business:user:role:update",
   "business:loyalty:read",
   "business:loyalty:redeem",
-  "business:loyalty:write"
+  "business:loyalty:write",
+  "business:customer:read",
+  "business:customer:write",
+  "business:campaign:read",
+  "business:campaign:write",
+  "business:analytics:read",
+  "platform:analytics:read",
+  "platform:subscription:write",
+  "platform:system_issue:update"
 ] as const;
 
 export type PermissionKey = (typeof permissionKeys)[number];
@@ -72,3 +80,11 @@ export {
   stampsUntilReward,
   type LoyaltyProgramRules
 } from "./loyalty.js";
+export {
+  calculateCampaignDiscount,
+  campaignStatuses,
+  campaignTransitions,
+  canTransitionCampaign,
+  type CampaignDiscountRule,
+  type CampaignStatus
+} from "./campaign.js";

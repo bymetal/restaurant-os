@@ -164,6 +164,15 @@ export async function createBusinessWithOwner(
 export async function listBusinesses(pool: Pool, search?: string): Promise<unknown[]> {
   const result = await pool.query(
     `
+      WITH order_stats AS (
+        SELECT business_id,
+               count(*) FILTER (WHERE created_at >= now() - interval '30 days') AS order_count_30d,
+               coalesce(sum(total_minor) FILTER (WHERE created_at >= now() - interval '30 days'), 0) AS gmv_30d,
+               max(created_at) AS last_activity
+        FROM orders
+        WHERE status NOT IN ('CANCELLED', 'REJECTED')
+        GROUP BY business_id
+      )
       SELECT
         b.id,
         b.name,
@@ -173,10 +182,20 @@ export async function listBusinesses(pool: Pool, search?: string): Promise<unkno
         b.currency,
         b.created_at AS "createdAt",
         COUNT(DISTINCT br.id)::int AS "branchCount",
-        COUNT(DISTINCT bu.user_id)::int AS "userCount"
+        COUNT(DISTINCT bu.user_id)::int AS "userCount",
+        MAX(bp.code) AS "planCode",
+        MAX(bp.name) AS "planName",
+        COALESCE(MAX(os.order_count_30d), 0)::int AS "orders30d",
+        COALESCE(MAX(os.gmv_30d), 0)::int AS "gmv30dMinor",
+        MAX(os.last_activity) AS "lastActivityAt",
+        COALESCE(MAX(ih.status), 'disconnected') AS "whatsappStatus"
       FROM businesses b
       LEFT JOIN branches br ON br.business_id = b.id
       LEFT JOIN business_users bu ON bu.business_id = b.id
+      LEFT JOIN business_subscriptions bs ON bs.business_id = b.id
+      LEFT JOIN billing_plans bp ON bp.id = bs.plan_id
+      LEFT JOIN order_stats os ON os.business_id = b.id
+      LEFT JOIN integration_health ih ON ih.business_id = b.id AND ih.integration_type = 'whatsapp'
       WHERE ($1::text IS NULL OR b.name ILIKE '%' || $1 || '%' OR b.slug ILIKE '%' || $1 || '%')
       GROUP BY b.id
       ORDER BY b.created_at DESC

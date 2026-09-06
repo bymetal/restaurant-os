@@ -3,10 +3,12 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { hashPassword } from "@restaurant-os/auth";
 import {
+  assignSubscriptionRequestSchema,
   createBusinessRequestSchema,
   roleAssignmentRequestSchema
 } from "@restaurant-os/contracts";
 import { ApiError } from "../errors.js";
+import { assignSubscription } from "../repositories/platform-analytics.js";
 import {
   assignBusinessRole,
   createBusinessWithOwner,
@@ -76,6 +78,16 @@ export function registerPlatformRoutes(app: FastifyInstance, pool: Pool): void {
       const input = parseInput(roleAssignmentRequestSchema, request.body);
       const { businessId, userId } = request.params as { businessId: string; userId: string };
       return assignBusinessRole(pool, businessId, userId, input, actor(request));
+    }
+  );
+
+  app.put(
+    "/v1/platform/businesses/:businessId/subscription",
+    { preHandler: [app.authenticate, app.requireScope("platform"), app.requirePermission("platform:subscription:write")] },
+    async (request) => {
+      const input = parseInput(assignSubscriptionRequestSchema, request.body);
+      const { businessId } = request.params as { businessId: string };
+      return assignSubscription(pool, businessId, input.planCode, actor(request));
     }
   );
 }

@@ -1,16 +1,36 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, ShoppingBag } from "lucide-react";
-import { EmptyState } from "@restaurant-os/ui";
+import { ArrowLeft, CheckCircle2, ShoppingBag } from "lucide-react";
+import { Button, EmptyState } from "@restaurant-os/ui";
 import { formatMoney } from "../../../../lib/format";
 import { useCart } from "../../../../lib/use-cart";
+import { CheckoutForm, type ConfirmedOrder } from "./CheckoutForm";
 
 export function CartView({ slug }: { slug: string }) {
   const searchParams = useSearchParams();
   const branchSlug = searchParams.get("branch") ?? "";
   const { cart, loading } = useCart(slug, branchSlug);
+  const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedOrder | null>(null);
+
+  if (confirmedOrder) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 text-center">
+        <CheckCircle2 size={48} className="text-emerald-500" />
+        <h1 className="mt-4 text-lg font-bold text-slate-900">Siparişiniz alındı!</h1>
+        <p className="mt-1 text-sm text-slate-500">Sipariş No: #{confirmedOrder.orderNumber}</p>
+        <p className="mt-4 text-2xl font-bold text-slate-900">{formatMoney(confirmedOrder.totalMinor)}</p>
+        {confirmedOrder.discountMinor > 0 && (
+          <p className="text-sm text-emerald-600">Kampanya indirimi: -{formatMoney(confirmedOrder.discountMinor)}</p>
+        )}
+        <Link href={`/r/${slug}`} className="mt-6">
+          <Button variant="outline">Menüye Dön</Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto min-h-screen max-w-md bg-white">
@@ -51,9 +71,7 @@ export function CartView({ slug }: { slug: string }) {
               <span className="text-sm font-semibold text-slate-600">Ara Toplam</span>
               <span className="text-lg font-bold text-slate-900">{formatMoney(cart.totalMinor)}</span>
             </div>
-            <p className="mt-6 rounded-lg bg-slate-50 p-3 text-center text-xs text-slate-500">
-              Ödeme ve teslimat bilgisi akışı yakında burada tamamlanacak.
-            </p>
+            <CheckoutForm slug={slug} onSuccess={setConfirmedOrder} />
           </>
         )}
       </div>

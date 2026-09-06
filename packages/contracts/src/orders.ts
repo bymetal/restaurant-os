@@ -24,6 +24,7 @@ export const checkoutRequestSchema = z.object({
   address: addressSchema.optional(),
   note: z.string().trim().max(1_000).optional(),
   deliveryInstructions: z.string().trim().max(500).optional(),
+  couponCode: z.string().trim().min(3).max(50).optional(),
   payment: z.object({
     method: z.enum(["cash", "card_on_delivery", "pay_at_restaurant"]),
     amountMinor: z.number().int().min(0).optional()
@@ -61,6 +62,7 @@ export const orderTransitionRequestSchema = z.object({
 
 export const orderListQuerySchema = z.object({
   branchId: z.string().uuid().optional(),
+  customerId: z.string().uuid().optional(),
   status: z.enum([
     "DRAFT",
     "PLACED",

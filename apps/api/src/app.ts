@@ -17,6 +17,10 @@ import { registerAuthPlugin } from "./auth-plugin.js";
 import { ApiError } from "./errors.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerPlatformRoutes } from "./routes/platform.js";
+import { registerCampaignRoutes } from "./routes/campaigns.js";
+import { registerBusinessAnalyticsRoutes } from "./routes/business-analytics.js";
+import { registerPlatformAnalyticsRoutes } from "./routes/platform-analytics.js";
+import { registerCustomerRoutes } from "./routes/customers.js";
 import { registerLoyaltyRoutes } from "./routes/loyalty.js";
 import { registerMenuRoutes } from "./routes/menu.js";
 import { registerOrderRoutes } from "./routes/orders.js";
@@ -66,6 +70,10 @@ export function buildApp(
   registerMenuRoutes(app, dependencies.pool);
   registerOrderRoutes(app, dependencies.pool);
   registerLoyaltyRoutes(app, dependencies.pool);
+  registerCustomerRoutes(app, dependencies.pool);
+  registerCampaignRoutes(app, dependencies.pool);
+  registerBusinessAnalyticsRoutes(app, dependencies.pool);
+  registerPlatformAnalyticsRoutes(app, dependencies.pool);
   registerPublicRoutes(
     app,
     dependencies.pool,

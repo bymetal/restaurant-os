@@ -26,6 +26,28 @@ without a separate claim-token table. `carts.customer_id` links a storefront
 session to the customer recognized during checkout so the public storefront
 can show loyalty progress on return visits.
 
+`0006_crm.sql` extends `customers` with segment/acquisition/preference fields
+and adds `customer_notes` and `customer_tags`. No separate customer-events
+table exists; the interaction timeline is assembled from `order_events`,
+`loyalty_transactions`, and `customer_notes` with a `UNION ALL` at query time.
+
+`0007_campaigns.sql` adds `campaigns` (coupon-code discounts with a draft →
+active → paused/completed/archived state machine), a `campaign_id` column on
+`order_adjustments`, and `campaign_events`. Checkout resolves and locks the
+campaign row in the same transaction as order creation, so the redemption
+limit is race-free.
+
+`0008_business_analytics.sql` adds only the `business:analytics:read`
+permission; every analytics endpoint is a read-only aggregate over existing
+`orders`/`order_items`/`loyalty_accounts` data, so no new tables are needed.
+
+`0009_platform_analytics.sql` adds `billing_plans` (seeded Starter/Growth/Pro),
+`business_subscriptions` (which plan a business is on; no payment provider),
+`integration_health`, and `system_issues`. The latter two are real,
+queryable tables that start empty and stay empty until a future
+Evolution/printer-agent/n8n phase writes to them — the platform dashboard
+never fabricates a connection status or issue count.
+
 Apply migrations with:
 
 ```powershell

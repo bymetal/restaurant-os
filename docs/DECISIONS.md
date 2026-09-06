@@ -151,3 +151,116 @@ Loyalty balances can be audited and reconstructed entirely from
 later phase introduces a general outbox consumer/worker, the synchronous stamp
 grant inside `transitionOrder` can be revisited, but is correct and simple for
 the current architecture.
+
+## ADR-006 - CRM Data Model And Union-Based Timeline
+
+- Date: 2026-09-06
+- Status: Accepted
+
+### Context
+
+The restaurant admin needs a per-customer profile page (segment, notes,
+preferences, favorite products, and an interaction timeline) without
+duplicating data that already exists in `order_events` and
+`loyalty_transactions`.
+
+### Decision
+
+Extend `customers` with `segment`, `acquisition_source`,
+`preferred_branch_id`, `preferred_fulfillment`, `birthday`, and
+`last_seen_at`. Add `customer_notes` (free-text, audited) and `customer_tags`
+(short labels, unique per customer). No separate `customer_events` table is
+introduced: the interaction timeline is assembled with a single SQL
+`UNION ALL` across `order_events`, `loyalty_transactions`, and
+`customer_notes`, ordered by `created_at`. Favorite products are computed with
+a `GROUP BY` aggregate over `order_items`/`orders`, not stored redundantly.
+Trend percentages on the customer metric cards (total spend, order count,
+average basket) compare the last 30 days against the preceding 30 days,
+computed from `orders` directly; nothing is fabricated.
+
+### Consequences
+
+Adding a new timeline-worthy event type (for example "campaign clicked" in a
+later phase) means adding one more branch to the `UNION ALL`, not a migration
+to backfill a duplicate events table. Customer profile updates and notes are
+wrapped in the same transaction as their audit log entry, matching every other
+mutation in this codebase.
+
+## ADR-007 - Campaigns And Coupon-Code Checkout Discounts
+
+- Date: 2026-09-06
+- Status: Accepted
+
+### Context
+
+Restaurant owners need percentage/fixed-amount coupon campaigns with an
+optional redemption limit, and the storefront checkout must apply them
+correctly under concurrent requests without ever exceeding the configured
+limit.
+
+### Decision
+
+`campaigns` follows the same explicit state machine pattern as orders
+(`draft → scheduled/active → paused/completed`, terminal `archived`/`completed`),
+implemented in `packages/domain/src/campaign.ts`. Checkout resolves a supplied
+`couponCode` with `resolveCampaignDiscount`, which locks the campaign row with
+`SELECT ... FOR UPDATE` **inside the same transaction as the rest of
+checkout**, validates status/date bounds/minimum order amount/redemption
+limit, computes the discount, and increments `redemption_count` before the
+order is written. If the coupon is invalid, expired, or exhausted, the entire
+checkout transaction rolls back with a specific error code
+(`CAMPAIGN_NOT_FOUND` / `CAMPAIGN_NOT_ACTIVE` / `CAMPAIGN_EXPIRED` /
+`CAMPAIGN_MINIMUM_NOT_REACHED` / `CAMPAIGN_LIMIT_REACHED`) rather than silently
+placing the order without the discount — a customer who supplied a coupon
+code should see a clear failure, not a surprise price. The discount is
+recorded as an `order_adjustments` row (`type = 'campaign_discount'`,
+`campaign_id` set), reusing the existing table instead of a new one.
+
+### Consequences
+
+The `FOR UPDATE` lock on the campaign row serializes concurrent checkouts
+racing for the last redemption slot; exactly one succeeds, and the loser's
+whole order is rolled back (not partially applied). Campaign performance
+(`GET /v1/campaigns/:id/performance`) is computed directly from
+`order_adjustments` joined to `orders`, so it can never drift from what
+customers actually paid.
+
+## ADR-008 - Platform Analytics, Billing Bookkeeping, And Integration Health Placeholders
+
+- Date: 2026-09-06
+- Status: Accepted
+
+### Context
+
+The super-admin dashboard mockup shows platform-wide metrics including MRR,
+connected WhatsApp count, and open system issues. No payment provider
+(Stripe/İyzico) or Evolution/WhatsApp integration exists yet, and building
+either is a separate, much larger phase requiring external provider
+credentials that are not available in this environment.
+
+### Decision
+
+`billing_plans` (seeded with Starter/Growth/Pro at the exact prices shown on
+the landing page) and `business_subscriptions` record **which plan a
+business is on**, not a real payment/billing system. MRR is
+`SUM(monthly_price_minor) WHERE status IN ('active','trialing')` — real
+bookkeeping arithmetic, not a charge. `integration_health` and
+`system_issues` are real, queryable tables with correct schemas, but they
+start and remain **empty** until a future Evolution adapter, printer agent, or
+n8n webhook handler actually writes to them. The platform overview endpoint
+never fabricates a number for these: a business with no `integration_health`
+row is reported as `disconnected`, and zero rows in `system_issues` means the
+dashboard genuinely shows zero open issues, not a fake "all healthy" default.
+Every count-based platform metric (`totalBusinesses`, `totalCustomers`) gets
+a real 30-day-window growth trend computed from `created_at`; metrics with no
+historical basis (MRR, connected WhatsApp count) report no trend rather than
+an invented one.
+
+### Consequences
+
+When the Evolution/WhatsApp and printer-agent phases are eventually built,
+they only need to write rows into `integration_health`/`system_issues` — the
+super-admin dashboard already reads and displays them correctly, no schema
+migration required. Anyone auditing the super-admin dashboard's numbers can
+trace every figure back to a real row in the database; nothing is a
+placeholder constant.
