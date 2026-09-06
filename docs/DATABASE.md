@@ -7,6 +7,10 @@ business, branch, membership, outbox, idempotency, and audit tables.
 platform-role assignments, audit before/after fields, role/permission seeds, and
 the partial unique index required for platform-level idempotency.
 
+`0003_menu_storefront.sql` adds branch slugs, categories, products, variants,
+modifier groups/items, branch availability overrides, and server-side carts with
+price snapshots. Money values are integer minor units.
+
 Apply migrations with:
 
 ```powershell

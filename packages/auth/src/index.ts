@@ -16,3 +16,4 @@ export {
   type AuthConfig
 } from "./tokens.js";
 export type { AuthContext } from "./context.js";
+export { createStorefrontSession, hashStorefrontSession } from "./session.js";

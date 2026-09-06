@@ -17,6 +17,7 @@
     "@restaurant-os/db": "workspace:*",
     "jose": "^6.0.10",
     "fastify": "^5.2.1",
+    "ioredis": "^5.4.1",
     "pg": "^8.13.1",
     "zod": "^3.25.76"
   },

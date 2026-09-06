@@ -17,6 +17,8 @@ const app = buildApp(
     checkDatabase: () => checkDatabase(database),
     checkRedis: () => checkRedis(redis),
     pool: database,
+    redis,
+    publicRateLimitPerMinute: env.PUBLIC_RATE_LIMIT_PER_MINUTE,
     authConfig: {
       jwtSecret: env.JWT_SECRET,
       jwtIssuer: env.JWT_ISSUER,

@@ -18,3 +18,23 @@ export {
   type LoginRequest,
   type RoleAssignmentRequest
 } from "./auth.js";
+export {
+  addCartItemRequestSchema,
+  availabilityRequestSchema,
+  createCartRequestSchema,
+  createCategoryRequestSchema,
+  createModifierGroupRequestSchema,
+  createModifierRequestSchema,
+  createProductRequestSchema,
+  createVariantRequestSchema,
+  publicMenuQuerySchema,
+  type AddCartItemRequest,
+  type AvailabilityRequest,
+  type CreateCartRequest,
+  type CreateCategoryRequest,
+  type CreateModifierGroupRequest,
+  type CreateModifierRequest,
+  type CreateProductRequest,
+  type CreateVariantRequest,
+  type PublicMenuQuery
+} from "./menu.js";

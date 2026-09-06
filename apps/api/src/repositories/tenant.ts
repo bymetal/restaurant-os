@@ -85,11 +85,11 @@ export async function createBusinessWithOwner(
     const businessId = business.id;
     const branchResult = await client.query<{ id: string }>(
       `
-        INSERT INTO branches (business_id, name, address_text, timezone)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO branches (business_id, name, slug, address_text, timezone)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id
       `,
-      [businessId, input.branchName, input.branchAddress ?? null, input.timezone]
+      [businessId, input.branchName, branchSlug(input.branchName), input.branchAddress ?? null, input.timezone]
     );
     const userResult = await client.query<{ id: string }>(
       `
@@ -194,7 +194,7 @@ export async function getBusinessDetail(pool: Pool, businessId: string): Promise
   if (!business.rows[0]) return null;
   const [branches, users] = await Promise.all([
     pool.query(
-      `SELECT id, name, address_text AS "addressText", active FROM branches WHERE business_id = $1 ORDER BY created_at`,
+      `SELECT id, name, slug, address_text AS "addressText", active FROM branches WHERE business_id = $1 ORDER BY created_at`,
       [businessId]
     ),
     pool.query(
@@ -323,8 +323,8 @@ export async function assignBusinessRole(
 
 export async function listBranches(pool: Pool, businessId: string): Promise<unknown[]> {
   const result = await pool.query(
-    `
-      SELECT id, business_id AS "businessId", name, address_text AS "addressText", timezone, active
+      `
+        SELECT id, business_id AS "businessId", name, slug, address_text AS "addressText", timezone, active
       FROM branches
       WHERE business_id = $1
       ORDER BY created_at
@@ -350,11 +350,17 @@ export async function createBranch(
     if (!business.rows[0]) throw new ApiError(404, "NOT_FOUND", "Active business not found.");
     const result = await client.query(
       `
-        INSERT INTO branches (business_id, name, address_text, timezone)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, business_id AS "businessId", name, address_text AS "addressText", timezone, active
+        INSERT INTO branches (business_id, name, slug, address_text, timezone)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, business_id AS "businessId", name, slug, address_text AS "addressText", timezone, active
       `,
-      [businessId, input.name, input.addressText ?? null, business.rows[0].timezone]
+      [
+        businessId,
+        input.name,
+        await uniqueBranchSlug(client, businessId, input.name),
+        input.addressText ?? null,
+        business.rows[0].timezone
+      ]
     );
     const branch = result.rows[0];
     await insertAudit(client, {
@@ -392,6 +398,24 @@ export async function listBusinessUsers(pool: Pool, businessId: string): Promise
     [businessId]
   );
   return result.rows;
+}
+
+function branchSlug(name: string): string {
+  const normalized = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return normalized || "branch";
+}
+
+async function uniqueBranchSlug(client: PoolClient, businessId: string, name: string): Promise<string> {
+  const base = branchSlug(name);
+  const result = await client.query<{ slug: string }>(
+    `SELECT slug FROM branches WHERE business_id = $1 AND (slug = $2 OR slug LIKE $2 || '-%')`,
+    [businessId, base]
+  );
+  if (result.rows.length === 0) return base;
+  const used = new Set(result.rows.map((row) => row.slug));
+  let suffix = 2;
+  while (used.has(`${base}-${suffix}`)) suffix += 1;
+  return `${base}-${suffix}`;
 }
 
 export async function insertAudit(client: PoolClient, input: AuditInput): Promise<void> {

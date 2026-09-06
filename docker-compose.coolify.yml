@@ -3,6 +3,7 @@ x-app-environment: &app-environment
   - HOST
   - PORT
   - LOG_LEVEL
+  - CORS_ORIGINS
   - DATABASE_URL
   - REDIS_URL
   - SESSION_SECRET

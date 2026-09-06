@@ -52,3 +52,28 @@ SameSite=Strict cookies.
 Role changes, password changes, and tenant suspension can revoke active access
 through a token-version bump. The database remains the source of truth for
 authorization, while access tokens remain short-lived identity assertions.
+
+## ADR-003 - Phase 2 Menu Pricing
+
+- Date: 2026-09-06
+- Status: Accepted
+
+### Context
+
+Menu and cart prices must remain deterministic when they later become order
+prices. Database numeric rounding would add avoidable ambiguity for TRY and
+other currencies.
+
+### Decision
+
+Store product base prices, variant adjustments, modifier adjustments, and cart
+snapshots as integer minor units. Treat a missing branch availability override
+as available when the product itself is active. Defer the explicit `menus`
+container and upsell rule builder until their planned phases; Phase 2 uses one
+implicit menu tree per business.
+
+### Consequences
+
+Cart totals can be calculated without floating-point arithmetic, and Phase 3
+order snapshots can reuse the same price primitives. A later menu container can
+be introduced through a migration without changing product ownership rules.

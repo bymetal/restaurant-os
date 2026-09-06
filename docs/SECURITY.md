@@ -17,3 +17,9 @@
   cancellations/refunds, secret changes, subscriptions, and PII exports.
 - Add tenant-isolation, idempotency, authorization, and token-expiry tests with
   each relevant feature.
+- Public menu and cart routes are rate-limited through Redis. Cart sessions are
+  scoped by both session hash and resolved business; a public URL never accepts
+  a client-supplied tenant ID.
+- Cart item prices are server-derived and stored as snapshots. Client-provided
+  prices are ignored, inactive products are rejected, and modifier min/max
+  rules are enforced in Core API code.

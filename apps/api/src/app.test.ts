@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Pool } from "pg";
+import type { Redis } from "ioredis";
 import { buildApp } from "./app.js";
 
 const authConfig = {
@@ -20,6 +21,8 @@ describe("API health endpoints", () => {
         checkDatabase: async () => undefined,
         checkRedis: async () => undefined,
         pool: {} as Pool,
+        redis: {} as Redis,
+        publicRateLimitPerMinute: 120,
         authConfig
       },
       { logger: false }
@@ -40,6 +43,8 @@ describe("API health endpoints", () => {
         },
         checkRedis: async () => undefined,
         pool: {} as Pool,
+        redis: {} as Redis,
+        publicRateLimitPerMinute: 120,
         authConfig
       },
       { logger: false }
@@ -61,6 +66,8 @@ describe("API health endpoints", () => {
         checkDatabase: async () => undefined,
         checkRedis: async () => undefined,
         pool: {} as Pool,
+        redis: {} as Redis,
+        publicRateLimitPerMinute: 120,
         authConfig
       },
       { logger: false }

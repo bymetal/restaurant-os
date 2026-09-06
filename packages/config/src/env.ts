@@ -18,6 +18,7 @@ export const runtimeEnvSchema = z
     ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3_600).default(900),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
     REFRESH_COOKIE_NAME: z.string().min(1).default("restaurant_os_refresh"),
+    PUBLIC_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(10_000).default(120),
     SUPER_ADMIN_EMAIL: z.preprocess(
       (value) => (value === "" ? undefined : value),
       z.string().email().optional()

@@ -54,5 +54,6 @@ added. Schema changes must be represented by a new ordered SQL migration.
 - `packages/contracts`: shared Zod API contracts
 - `packages/domain`: framework-independent domain types
 - `packages/db`: PostgreSQL client and migrations
+- `packages/auth`: password, JWT, and anonymous storefront session primitives
 - `docs/`: architecture, security, deployment, and decision records
 - `n8n/workflows/`: versioned automation workflow boundary

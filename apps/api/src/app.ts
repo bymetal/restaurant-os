@@ -3,7 +3,9 @@ import Fastify, {
   type FastifyServerOptions
 } from "fastify";
 import { randomUUID } from "node:crypto";
+import cookie from "@fastify/cookie";
 import type { Pool } from "pg";
+import type { Redis } from "ioredis";
 import type { AuthConfig } from "@restaurant-os/auth";
 import {
   liveHealthSchema,
@@ -14,6 +16,8 @@ import { registerAuthPlugin } from "./auth-plugin.js";
 import { ApiError } from "./errors.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerPlatformRoutes } from "./routes/platform.js";
+import { registerMenuRoutes } from "./routes/menu.js";
+import { registerPublicRoutes } from "./routes/public.js";
 import { registerTenantRoutes } from "./routes/tenant.js";
 
 export interface HealthDependencies {
@@ -28,6 +32,8 @@ export interface BuildAppOptions {
 
 export interface AppDependencies extends HealthDependencies {
   pool: Pool;
+  redis: Redis;
+  publicRateLimitPerMinute: number;
   authConfig: AuthConfig;
 }
 
@@ -46,9 +52,19 @@ export function buildApp(
   });
 
   registerAuthPlugin(app, dependencies.pool, dependencies.authConfig);
+  app.register(cookie);
   registerAuthRoutes(app, { pool: dependencies.pool, authConfig: dependencies.authConfig });
   registerPlatformRoutes(app, dependencies.pool);
   registerTenantRoutes(app, dependencies.pool);
+  registerMenuRoutes(app, dependencies.pool);
+  registerPublicRoutes(
+    app,
+    dependencies.pool,
+    dependencies.redis,
+    dependencies.authConfig.refreshCookieSecure,
+    dependencies.publicRateLimitPerMinute,
+    dependencies.authConfig.allowedOrigins
+  );
 
   app.get("/health/live", async () =>
     liveHealthSchema.parse({

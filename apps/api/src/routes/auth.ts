@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import cookie from "@fastify/cookie";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Pool, PoolClient } from "pg";
 import {
@@ -40,8 +39,6 @@ export interface AuthRouteDependencies {
 }
 
 export function registerAuthRoutes(app: FastifyInstance, dependencies: AuthRouteDependencies): void {
-  app.register(cookie);
-
   app.post("/v1/auth/login", async (request, reply) => {
     const input = parseInput(loginRequestSchema, request.body);
     const email = normalizeEmail(input.email);
