@@ -15,13 +15,25 @@ const redis = createRedisClient(env.REDIS_URL);
 const app = buildApp(
   {
     checkDatabase: () => checkDatabase(database),
-    checkRedis: () => checkRedis(redis)
+    checkRedis: () => checkRedis(redis),
+    pool: database,
+    authConfig: {
+      jwtSecret: env.JWT_SECRET,
+      jwtIssuer: env.JWT_ISSUER,
+      jwtAudience: env.JWT_AUDIENCE,
+      accessTokenTtlSeconds: env.ACCESS_TOKEN_TTL_SECONDS,
+      refreshTokenTtlDays: env.REFRESH_TOKEN_TTL_DAYS,
+      refreshCookieName: env.REFRESH_COOKIE_NAME,
+      refreshCookieSecure: env.NODE_ENV === "production",
+      allowedOrigins: env.CORS_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+    }
   },
   {
     logger: {
       level: env.LOG_LEVEL,
       redact: ["req.headers.authorization", "req.headers.cookie"]
-    }
+    },
+    trustProxy: env.NODE_ENV === "production"
   }
 );
 

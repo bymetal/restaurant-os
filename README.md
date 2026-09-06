@@ -17,11 +17,15 @@ pnpm install
 Copy-Item .env.example .env
 docker compose up -d postgres redis
 pnpm db:migrate
+pnpm db:seed
 pnpm dev
 ```
 
 The API listens on `http://127.0.0.1:4000`. Liveness is available at
 `/health/live`; readiness checks PostgreSQL and Redis at `/health/ready`.
+
+Set `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` in the local environment
+before running `pnpm db:seed`. Never use production credentials in local files.
 
 ## Coolify Deployment
 

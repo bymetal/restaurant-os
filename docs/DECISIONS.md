@@ -27,3 +27,28 @@ runtime AI or n8n business logic is introduced.
 Phase 0 can be verified locally with Docker Compose and does not hide missing
 provider credentials behind fake production claims. Later schema changes must be
 new migrations, and architecture changes require another ADR.
+
+## ADR-002 - Phase 1 Authentication
+
+- Date: 2026-09-06
+- Status: Accepted
+
+### Context
+
+Restaurant users need revocable sessions and platform/business role contexts
+without trusting role claims or tenant IDs supplied by a client.
+
+### Decision
+
+Use short-lived HS256 access JWTs with fixed issuer/audience and a token version
+checked against PostgreSQL on every authenticated request. Use opaque,
+SHA-256-hashed refresh tokens with family rotation and reuse revocation. Store
+passwords with Argon2id and keep the password hash, token version, role, and
+permissions in the database. Refresh tokens are HttpOnly, Secure in production,
+SameSite=Strict cookies.
+
+### Consequences
+
+Role changes, password changes, and tenant suspension can revoke active access
+through a token-version bump. The database remains the source of truth for
+authorization, while access tokens remain short-lived identity assertions.

@@ -11,9 +11,11 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "migrate": "tsx src/migrate-cli.ts"
+    "migrate": "tsx src/migrate-cli.ts",
+    "seed": "tsx src/seed-super-admin.ts"
   },
   "dependencies": {
+    "@restaurant-os/auth": "workspace:*",
     "@restaurant-os/config": "workspace:*",
     "ioredis": "^5.4.1",
     "pg": "^8.13.1"

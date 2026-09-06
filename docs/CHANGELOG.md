@@ -6,3 +6,5 @@
 - Added Fastify liveness/readiness endpoints with PostgreSQL and Redis checks.
 - Added initial tenant, outbox, idempotency, and audit migrations.
 - Added environment validation, CI, tests, and local infrastructure docs.
+- Added Phase 1 authentication, role/permission checks, tenant-scoped business
+  and branch endpoints, refresh-token rotation, and super-admin bootstrap.

@@ -3,11 +3,18 @@ import Fastify, {
   type FastifyServerOptions
 } from "fastify";
 import { randomUUID } from "node:crypto";
+import type { Pool } from "pg";
+import type { AuthConfig } from "@restaurant-os/auth";
 import {
   liveHealthSchema,
   readyHealthSchema,
   type ReadyHealth
 } from "@restaurant-os/contracts";
+import { registerAuthPlugin } from "./auth-plugin.js";
+import { ApiError } from "./errors.js";
+import { registerAuthRoutes } from "./routes/auth.js";
+import { registerPlatformRoutes } from "./routes/platform.js";
+import { registerTenantRoutes } from "./routes/tenant.js";
 
 export interface HealthDependencies {
   checkDatabase: () => Promise<void>;
@@ -16,10 +23,16 @@ export interface HealthDependencies {
 
 export interface BuildAppOptions {
   logger?: FastifyServerOptions["logger"];
+  trustProxy?: boolean;
+}
+
+export interface AppDependencies extends HealthDependencies {
+  pool: Pool;
+  authConfig: AuthConfig;
 }
 
 export function buildApp(
-  dependencies: HealthDependencies,
+  dependencies: AppDependencies,
   options: BuildAppOptions = {}
 ): FastifyInstance {
   const app = Fastify({
@@ -27,9 +40,15 @@ export function buildApp(
       level: "info",
       redact: ["req.headers.authorization", "req.headers.cookie"]
     },
+    trustProxy: options.trustProxy ?? false,
     requestIdHeader: "x-request-id",
     genReqId: (request) => request.headers["x-request-id"]?.toString() ?? randomUUID()
   });
+
+  registerAuthPlugin(app, dependencies.pool, dependencies.authConfig);
+  registerAuthRoutes(app, { pool: dependencies.pool, authConfig: dependencies.authConfig });
+  registerPlatformRoutes(app, dependencies.pool);
+  registerTenantRoutes(app, dependencies.pool);
 
   app.get("/health/live", async () =>
     liveHealthSchema.parse({
@@ -59,21 +78,32 @@ export function buildApp(
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error({ err: error }, "Unhandled request error");
-    const statusCode =
-      typeof error === "object" && error !== null && "statusCode" in error &&
-      typeof error.statusCode === "number" && error.statusCode >= 400
-        ? error.statusCode
-        : 500;
+    const statusCode = error instanceof ApiError ? error.statusCode : getStatusCode(error);
+    const errorBody: { code: string; message: string; requestId: string; details?: unknown } = {
+      code: error instanceof ApiError ? error.code : "INTERNAL_ERROR",
+      message: error instanceof ApiError ? error.message : "Unexpected server error.",
+      requestId: request.id
+    };
+    if (error instanceof ApiError && error.details !== undefined) errorBody.details = error.details;
     return reply.code(statusCode).send({
-      error: {
-        code: "INTERNAL_ERROR",
-        message: "Unexpected server error.",
-        requestId: request.id
-      }
+      error: errorBody
     });
   });
 
   return app;
+}
+
+function getStatusCode(error: unknown): number {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "statusCode" in error &&
+    typeof error.statusCode === "number" &&
+    error.statusCode >= 400
+  ) {
+    return error.statusCode;
+  }
+  return 500;
 }
 
 async function checkDependency(

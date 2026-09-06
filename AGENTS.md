@@ -11,7 +11,7 @@
 - At the initial handoff, the repository had only the master plan and no verified build, test, lint, migration, or dev-server commands. Check current manifests and scripts first; do not invent commands or claim production readiness before Phase 0 creates and verifies them.
 - Phase 0 must establish the planned pnpm monorepo, strict TypeScript, Docker Compose, PostgreSQL, Redis, environment validation, migrations, CI, tests, and project docs.
 - The current foundation commands are `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm test:e2e`; run them after changes. `pnpm db:migrate` requires PostgreSQL to be running, normally via `docker compose up -d postgres redis`.
-- Planned boundaries are `apps/{admin,storefront,api,worker,print-agent}`, `packages/{db,auth,domain,ui,contracts,analytics,integrations,config}`, provider adapters under `integrations/`, versioned workflows under `n8n/workflows/`, and `tests/{e2e,fixtures}`. Verify the actual tree before editing.
+- Planned boundaries are `apps/{admin,storefront,api,worker,print-agent}`, `packages/{db,auth,domain,ui,contracts,analytics,integrations,config}`, provider adapters under `integrations/`, versioned workflows under `n8n/workflows/`, and `tests/{e2e,fixtures}`. `packages/auth` now owns password/token primitives; API repositories own database-backed authorization. Verify the actual tree before editing.
 
 ## Non-Negotiable Architecture
 

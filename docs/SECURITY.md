@@ -4,6 +4,11 @@
   `business_id` or `branch_id`.
 - Validate API input at the boundary with Zod and keep `/v1` contracts and
   stable error codes current as modules are added.
+- Access JWTs use fixed HS256, issuer, audience, short expiry, and a database
+  token-version check. Refresh tokens are opaque, hashed, rotated by family,
+  and revoked on reuse.
+- Passwords use Argon2id; login failures are counted and temporarily locked
+  after repeated failures. Login errors do not reveal whether an email exists.
 - Keep real secrets in environment/secret storage. `.env.example` contains
   placeholders only. Do not write secrets or customer PII to repository docs
   or agent memory.
