@@ -16,6 +16,16 @@ item snapshots, order events, offline payments, and order adjustments. The
 `orders` total consistency check is a database backstop; totals are calculated
 by Core API before insertion.
 
+`0005_loyalty.sql` adds `loyalty_programs` (one active program per business),
+`loyalty_accounts` (materialized per-customer balances), and the
+`loyalty_transactions` ledger. Every earn, manual adjustment, and redemption is
+an immutable ledger row; account balances are derived from and only ever
+updated alongside a ledger insert in the same transaction. A partial unique
+index on `(business_id, idempotency_key)` makes ledger writes idempotent
+without a separate claim-token table. `carts.customer_id` links a storefront
+session to the customer recognized during checkout so the public storefront
+can show loyalty progress on return visits.
+
 Apply migrations with:
 
 ```powershell

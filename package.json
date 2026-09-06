@@ -7,15 +7,18 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "tsc -b --pretty false",
-    "typecheck": "tsc -b --pretty false",
+    "build": "tsc -b --pretty false && pnpm run build:web",
+    "build:api": "tsc -b --pretty false",
+    "build:web": "pnpm --filter @restaurant-os/admin build && pnpm --filter @restaurant-os/storefront build",
+    "typecheck": "tsc -b --pretty false && pnpm run typecheck:web",
+    "typecheck:web": "pnpm --filter @restaurant-os/admin run typecheck && pnpm --filter @restaurant-os/storefront run typecheck",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "db:migrate": "pnpm build && pnpm --filter @restaurant-os/db migrate",
-    "db:seed": "pnpm build && pnpm --filter @restaurant-os/db seed",
-    "dev": "pnpm build && cross-env PORT=4000 pnpm --parallel --filter @restaurant-os/api --filter @restaurant-os/worker dev"
+    "db:migrate": "pnpm run build:api && pnpm --filter @restaurant-os/db migrate",
+    "db:seed": "pnpm run build:api && pnpm --filter @restaurant-os/db seed",
+    "dev": "pnpm run build:api && cross-env PORT=4000 pnpm --parallel --filter @restaurant-os/api --filter @restaurant-os/worker dev"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

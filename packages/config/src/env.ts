@@ -10,7 +10,7 @@ export const runtimeEnvSchema = z
     PORT: z.coerce.number().int().min(1).max(65_535).default(4_000),
     LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
     APP_URL: z.string().url().default("http://127.0.0.1:4000"),
-    CORS_ORIGINS: z.string().default("http://127.0.0.1:4000"),
+    CORS_ORIGINS: z.string().default("http://127.0.0.1:4000,http://127.0.0.1:3000,http://127.0.0.1:3001"),
     DATABASE_URL: z.string().url().default("postgresql://postgres:postgres@127.0.0.1:5432/restaurant_os"),
     REDIS_URL: z.string().url().default("redis://127.0.0.1:6379"),
     JWT_ISSUER: z.string().min(1).default("restaurant-os-api"),

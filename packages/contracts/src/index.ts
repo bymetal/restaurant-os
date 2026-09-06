@@ -48,3 +48,11 @@ export {
   type OrderListQuery,
   type OrderTransitionRequest
 } from "./orders.js";
+export {
+  customerIdParamsSchema,
+  loyaltyAdjustRequestSchema,
+  upsertLoyaltyProgramRequestSchema,
+  type CustomerIdParams,
+  type LoyaltyAdjustRequest,
+  type UpsertLoyaltyProgramRequest
+} from "./loyalty.js";

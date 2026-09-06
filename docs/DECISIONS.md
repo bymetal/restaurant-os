@@ -107,3 +107,47 @@ restricted by role.
 Retries return the stored order even after the original cart is closed, client
 totals and payment amounts cannot alter the server result, and external side
 effects can be added later through the outbox without blocking checkout.
+
+## ADR-005 - Loyalty Ledger And Synchronous Stamp Earning
+
+- Date: 2026-09-06
+- Status: Accepted
+
+### Context
+
+Restaurant OS needs a per-business stamp/reward loyalty program (one active
+program per business). AGENTS.md requires loyalty changes to be stored in a
+transaction ledger, claim tokens consumed atomically and once, and balances
+derived from ledger activity.
+
+### Decision
+
+Store loyalty state in three tables: `loyalty_programs` (rules), `loyalty_accounts`
+(materialized balance, one per customer per program), and `loyalty_transactions`
+(the ledger; every EARN, ADJUSTMENT_ADD, ADJUSTMENT_REMOVE, and REDEEM is a row).
+A partial unique index on `loyalty_transactions (business_id, idempotency_key)`
+is the claim mechanism: an idempotent write attempts `INSERT ... ON CONFLICT DO
+NOTHING RETURNING id` inside the same transaction that updates the account
+balance, so a conflicting insert and the balance mutation always succeed or
+fail together. No separate claim-token table is introduced. Every mutating
+function additionally checks for an existing ledger row for the same
+idempotency key **before** evaluating business rules (insufficient balance,
+reward availability), so a retried request that arrives after the original
+already changed the balance is replayed rather than incorrectly rejected.
+
+A customer automatically earns a stamp when their order transitions to
+`DELIVERED`. `grantOrderStamp` runs inside `transitionOrder`'s existing
+transaction (no new outbox consumer or worker process), the same pattern
+`checkoutOrder` already uses for calling the offline payment adapter
+synchronously. The order state machine already prevents re-entering
+`DELIVERED`, so double-earning from a single order is structurally impossible;
+the ledger's idempotency key (`order-delivered:{orderId}`) is defense in depth.
+
+### Consequences
+
+Loyalty balances can be audited and reconstructed entirely from
+`loyalty_transactions`. Manual point adjustments and redemptions require an
+`Idempotency-Key` header and are audited like other sensitive mutations. When a
+later phase introduces a general outbox consumer/worker, the synchronous stamp
+grant inside `transitionOrder` can be revisited, but is correct and simple for
+the current architecture.

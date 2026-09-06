@@ -22,6 +22,7 @@ import {
   getPublicRestaurant
 } from "../repositories/menu.js";
 import { checkoutOrder } from "../repositories/orders.js";
+import { getCustomerLoyaltyStatus, resolveCustomerIdForSession } from "../repositories/loyalty.js";
 import { parseInput } from "../validation.js";
 import { createRateLimit } from "../rate-limit.js";
 
@@ -98,6 +99,17 @@ export function registerPublicRoutes(
       createRequestHash({ sessionHash: hashStorefrontSession(session), input })
     );
     return result.cart;
+  });
+
+  app.get("/v1/public/restaurants/:slug/loyalty/me", { preHandler: [readLimit] }, async (request) => {
+    const { slug } = request.params as { slug: string };
+    const restaurant = await getPublicRestaurant(pool, slug);
+    if (!restaurant) throw new ApiError(404, "NOT_FOUND", "Restaurant not found.");
+    const session = request.cookies[storefrontCookieName];
+    if (!session) return { loyalty: { linked: false, program: null, account: null } };
+    const customerId = await resolveCustomerIdForSession(pool, restaurant.id, hashStorefrontSession(session));
+    if (!customerId) return { loyalty: { linked: false, program: null, account: null } };
+    return { loyalty: await getCustomerLoyaltyStatus(pool, restaurant.id, customerId) };
   });
 
   app.post("/v1/public/restaurants/:slug/checkout", { preHandler: [writeLimit] }, async (request, reply) => {

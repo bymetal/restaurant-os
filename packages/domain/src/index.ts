@@ -25,7 +25,10 @@ export const permissionKeys = [
   "business:order:read",
   "business:order:update",
   "business:user:read",
-  "business:user:role:update"
+  "business:user:role:update",
+  "business:loyalty:read",
+  "business:loyalty:redeem",
+  "business:loyalty:write"
 ] as const;
 
 export type PermissionKey = (typeof permissionKeys)[number];
@@ -62,3 +65,10 @@ export {
   type OrderTotalsInput
 } from "./totals.js";
 export { calculateDeliveryFee, type DeliveryFeeInput } from "./delivery.js";
+export {
+  assertRedeemable,
+  calculateStampsEarned,
+  isRewardAvailable,
+  stampsUntilReward,
+  type LoyaltyProgramRules
+} from "./loyalty.js";

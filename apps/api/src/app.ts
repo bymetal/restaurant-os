@@ -4,6 +4,7 @@ import Fastify, {
 } from "fastify";
 import { randomUUID } from "node:crypto";
 import cookie from "@fastify/cookie";
+import cors from "@fastify/cors";
 import type { Pool } from "pg";
 import type { Redis } from "ioredis";
 import type { AuthConfig } from "@restaurant-os/auth";
@@ -16,6 +17,7 @@ import { registerAuthPlugin } from "./auth-plugin.js";
 import { ApiError } from "./errors.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerPlatformRoutes } from "./routes/platform.js";
+import { registerLoyaltyRoutes } from "./routes/loyalty.js";
 import { registerMenuRoutes } from "./routes/menu.js";
 import { registerOrderRoutes } from "./routes/orders.js";
 import { registerPublicRoutes } from "./routes/public.js";
@@ -53,12 +55,17 @@ export function buildApp(
   });
 
   registerAuthPlugin(app, dependencies.pool, dependencies.authConfig);
+  app.register(cors, {
+    origin: dependencies.authConfig.allowedOrigins,
+    credentials: true
+  });
   app.register(cookie);
   registerAuthRoutes(app, { pool: dependencies.pool, authConfig: dependencies.authConfig });
   registerPlatformRoutes(app, dependencies.pool);
   registerTenantRoutes(app, dependencies.pool);
   registerMenuRoutes(app, dependencies.pool);
   registerOrderRoutes(app, dependencies.pool);
+  registerLoyaltyRoutes(app, dependencies.pool);
   registerPublicRoutes(
     app,
     dependencies.pool,

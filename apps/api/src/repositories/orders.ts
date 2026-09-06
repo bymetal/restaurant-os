@@ -3,6 +3,7 @@ import { OfflinePaymentAdapter } from "@restaurant-os/integrations";
 import type { CheckoutRequest, OrderListQuery, OrderTransitionRequest } from "@restaurant-os/contracts";
 import type { Pool, PoolClient } from "pg";
 import { ApiError } from "../errors.js";
+import { grantOrderStamp } from "./loyalty.js";
 import { insertAudit, type AuditInput } from "./tenant.js";
 
 const offlinePayments = new OfflinePaymentAdapter();
@@ -251,7 +252,10 @@ export async function checkoutOrder(
       `INSERT INTO order_payments (order_id, business_id, branch_id, method, status, amount_minor, provider) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [order.id, businessId, cart.branchId, input.payment.method, payment.status, totals.totalMinor, payment.provider]
     );
-    await client.query(`UPDATE carts SET status = 'checked_out', checked_out_at = now(), updated_at = now() WHERE id = $1`, [cart.id]);
+    await client.query(
+      `UPDATE carts SET status = 'checked_out', checked_out_at = now(), updated_at = now(), customer_id = $2 WHERE id = $1`,
+      [cart.id, customer.id]
+    );
     await client.query(
       `INSERT INTO outbox_events (business_id, event_type, aggregate_type, aggregate_id, payload) VALUES ($1, 'order.created', 'order', $2, $3::jsonb)`,
       [businessId, order.id, JSON.stringify({ orderId: order.id, orderNumber })]
@@ -311,8 +315,15 @@ export async function transitionOrder(
   let committed = false;
   try {
     await client.query("BEGIN");
-    const result = await client.query<{ id: string; branchId: string; status: OrderStatus; fulfillmentType: FulfillmentType }>(
-      `SELECT id, branch_id AS "branchId", status, fulfillment_type AS "fulfillmentType" FROM orders WHERE id = $1 AND business_id = $2 FOR UPDATE`,
+    const result = await client.query<{
+      id: string;
+      branchId: string;
+      status: OrderStatus;
+      fulfillmentType: FulfillmentType;
+      customerId: string | null;
+      itemsSubtotalMinor: number;
+    }>(
+      `SELECT id, branch_id AS "branchId", status, fulfillment_type AS "fulfillmentType", customer_id AS "customerId", items_subtotal_minor AS "itemsSubtotalMinor" FROM orders WHERE id = $1 AND business_id = $2 FOR UPDATE`,
       [orderId, businessId]
     );
     const order = result.rows[0];
@@ -343,6 +354,14 @@ export async function transitionOrder(
     );
     if (input.toStatus === "REFUNDED") {
       await client.query(`UPDATE order_payments SET status = 'REFUNDED', updated_at = now() WHERE order_id = $1 AND business_id = $2`, [orderId, businessId]);
+    }
+    if (input.toStatus === "DELIVERED") {
+      await grantOrderStamp(client, businessId, {
+        id: orderId,
+        branchId: order.branchId,
+        customerId: order.customerId,
+        itemsSubtotalMinor: order.itemsSubtotalMinor
+      });
     }
     await client.query(
       `INSERT INTO outbox_events (business_id, event_type, aggregate_type, aggregate_id, payload) VALUES ($1, 'order.status_changed', 'order', $2, $3::jsonb)`,
