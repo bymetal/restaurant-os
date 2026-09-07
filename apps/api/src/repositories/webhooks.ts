@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
-import { isOptOutMessage, normalizePhone, parseInboundCommand } from "@restaurant-os/domain";
+import { isOptOutMessage, normalizePhone, parseInboundCommand, parseTelegramCallbackData, parseTelegramLinkCommand } from "@restaurant-os/domain";
+import { TelegramClient, type TelegramConfig } from "@restaurant-os/integrations";
 import type { Pool, PoolClient } from "pg";
 import { getConnectionByIdForBusiness, updateConnectionState } from "./evolution.js";
 import { consumeLoyaltyClaimToken } from "./loyalty.js";
+import { transitionOrderFromTelegram } from "./orders.js";
+import { confirmLink, resolveConnectionByChatId } from "./telegram.js";
 
 /**
  * Inbound Evolution webhook payload shape, coded against the documented
@@ -184,4 +187,85 @@ function normalizeEventType(event: string | undefined): string {
 
 function contentHash(payload: unknown): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+/**
+ * Inbound Telegram update payload shape per the official Bot API
+ * (https://core.telegram.org/bots/api#update). A single global bot serves
+ * every tenant; the destination chat_id (captured during /link) is what
+ * scopes an update to a business.
+ */
+interface TelegramUpdatePayload {
+  update_id?: number;
+  message?: { text?: string; chat?: { id?: number } };
+  callback_query?: {
+    id?: string;
+    data?: string;
+    message?: { message_id?: number; chat?: { id?: number } };
+  };
+}
+
+export async function ingestTelegramWebhook(pool: Pool, telegramConfig: TelegramConfig, rawPayload: unknown): Promise<WebhookIngestResult> {
+  const payload = rawPayload as TelegramUpdatePayload;
+  const chatId = (payload.message?.chat?.id ?? payload.callback_query?.message?.chat?.id)?.toString();
+  const connection = chatId ? await resolveConnectionByChatId(pool, chatId) : null;
+  const providerEventId = payload.update_id !== undefined ? String(payload.update_id) : contentHash(rawPayload);
+
+  const stored = await pool.query<{ id: string }>(
+    `INSERT INTO webhook_events (provider, connection_id, business_id, provider_event_id, event_type, payload)
+     VALUES ('telegram', $1, $2, $3, $4, $5::jsonb)
+     ON CONFLICT (connection_id, provider_event_id) DO NOTHING
+     RETURNING id`,
+    [connection?.id ?? null, connection?.businessId ?? null, providerEventId, payload.callback_query ? "callback_query" : "message", JSON.stringify(rawPayload)]
+  );
+  const webhookEventId = stored.rows[0]?.id;
+  if (!webhookEventId) return "duplicate";
+
+  try {
+    const outcome = await routeTelegramEvent(pool, telegramConfig, payload);
+    await pool.query(`UPDATE webhook_events SET status = $2, processed_at = now() WHERE id = $1`, [webhookEventId, outcome]);
+    return outcome === "ignored" ? "ignored" : "processed";
+  } catch (error) {
+    await pool.query(
+      `UPDATE webhook_events SET status = 'failed', processed_at = now(), attempts = attempts + 1, error = $2 WHERE id = $1`,
+      [webhookEventId, error instanceof Error ? error.message : "Unknown error"]
+    );
+    throw error;
+  }
+}
+
+async function routeTelegramEvent(pool: Pool, telegramConfig: TelegramConfig, payload: TelegramUpdatePayload): Promise<"processed" | "ignored"> {
+  if (payload.message?.text && payload.message.chat?.id !== undefined) {
+    const code = parseTelegramLinkCommand(payload.message.text);
+    if (!code) return "ignored";
+    const businessId = await confirmLink(pool, code, payload.message.chat.id.toString(), telegramConfig);
+    return businessId ? "processed" : "ignored";
+  }
+
+  if (payload.callback_query?.data && payload.callback_query.message?.chat?.id !== undefined) {
+    const chatId = payload.callback_query.message.chat.id.toString();
+    const callbackQueryId = payload.callback_query.id;
+    const telegramClient = new TelegramClient(telegramConfig);
+    const connection = await resolveConnectionByChatId(pool, chatId);
+    if (!connection) {
+      if (callbackQueryId) await telegramClient.answerCallbackQuery(callbackQueryId, "Bağlantı bulunamadı.", true).catch(() => undefined);
+      return "ignored";
+    }
+    const parsed = parseTelegramCallbackData(payload.callback_query.data);
+    if (!parsed) {
+      if (callbackQueryId) await telegramClient.answerCallbackQuery(callbackQueryId, "Geçersiz işlem.", true).catch(() => undefined);
+      return "ignored";
+    }
+    try {
+      await transitionOrderFromTelegram(pool, connection.businessId, parsed.orderId, parsed.toStatus);
+      if (callbackQueryId) await telegramClient.answerCallbackQuery(callbackQueryId, "Güncellendi ✅").catch(() => undefined);
+      return "processed";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Sipariş güncellenemedi.";
+      if (callbackQueryId) await telegramClient.answerCallbackQuery(callbackQueryId, message, true).catch(() => undefined);
+      return "processed";
+    }
+  }
+
+  return "ignored";
 }

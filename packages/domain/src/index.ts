@@ -39,7 +39,9 @@ export const permissionKeys = [
   "platform:system_issue:update",
   "business:integration:read",
   "business:integration:write",
-  "business:qr:write"
+  "business:qr:write",
+  "business:printer:read",
+  "business:printer:write"
 ] as const;
 
 export type PermissionKey = (typeof permissionKeys)[number];
@@ -101,3 +103,20 @@ export {
   type ConsentType,
   type ParsedInboundCommand
 } from "./consent.js";
+export {
+  buildTelegramCallbackData,
+  parseTelegramCallbackData,
+  parseTelegramLinkCommand,
+  type ParsedTelegramCallback,
+  type TelegramOrderAction
+} from "./telegram.js";
+export {
+  canTransitionPrintJob,
+  printDeviceRoles,
+  printJobStatuses,
+  printJobTypeForDeviceRole,
+  printJobTypes,
+  type PrintDeviceRole,
+  type PrintJobStatus,
+  type PrintJobType
+} from "./printing.js";

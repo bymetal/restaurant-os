@@ -69,6 +69,8 @@ describeDatabase("customers", () => {
         appUrl: "http://127.0.0.1:4000",
         appEncryptionKey: "integration-app-encryption-key-integration",
         evolutionConfig: { baseUrl: "http://127.0.0.1:8080", globalApiKey: "integration-evolution-key" },
+        telegramConfig: { botToken: "integration-telegram-token" },
+        telegramWebhookSecret: "integration-telegram-webhook-secret",
         authConfig: {
           jwtSecret: "integration-jwt-secret-integration-jwt-secret",
           jwtIssuer: "integration-issuer",

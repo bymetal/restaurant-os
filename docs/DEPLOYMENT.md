@@ -24,3 +24,20 @@ container start).
 or outbound notifications work — see ADR-009. Until a real Evolution/n8n
 deployment exists, these default to local placeholders and
 `POST /v1/integrations/whatsapp/connect` will fail.
+
+`TELEGRAM_BOT_TOKEN` must be a real bot token (created via @BotFather) before
+`POST /v1/integrations/telegram/connect` can do anything useful — see
+ADR-010. Unlike the Evolution/n8n secrets above, `TELEGRAM_BOT_TOKEN` is
+deliberately **not** part of `packages/config/src/env.ts`'s production
+secret-crash guard, so a missing/placeholder value does not block API
+startup; it only causes Telegram API calls to fail at request time.
+`TELEGRAM_WEBHOOK_SECRET` (validated against Telegram's
+`X-Telegram-Bot-Api-Secret-Token` header) **is** in that guard and must have
+a real generated value in Coolify before deploying, same as
+`N8N_INBOUND_SECRET`.
+
+`apps/print-agent` is **not** part of `docker-compose.coolify.yml` — per
+master plan section 31 it runs on the restaurant's own PC/mini-PC/Raspberry
+Pi, not in the cloud. It only needs network access to the public API domain
+and a per-device key issued via the admin panel's Printers page
+(`POST /v1/printers/devices`); see ADR-010.

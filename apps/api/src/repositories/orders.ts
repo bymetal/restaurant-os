@@ -5,6 +5,7 @@ import type { Pool, PoolClient } from "pg";
 import { ApiError } from "../errors.js";
 import { resolveCampaignDiscount } from "./campaigns.js";
 import { grantOrderStamp } from "./loyalty.js";
+import { createKitchenPrintJob } from "./printers.js";
 import { insertAudit, type AuditInput } from "./tenant.js";
 
 const offlinePayments = new OfflinePaymentAdapter();
@@ -34,8 +35,9 @@ export interface OrderResponse {
 }
 
 interface Actor {
-  userId: string;
+  userId: string | null;
   role: string;
+  actorType?: "user" | "system";
   ipAddress?: string | undefined;
   userAgent?: string | undefined;
 }
@@ -267,11 +269,34 @@ export async function checkoutOrder(
       `UPDATE carts SET status = 'checked_out', checked_out_at = now(), updated_at = now(), customer_id = $2 WHERE id = $1`,
       [cart.id, customer.id]
     );
+    const response = await assembleOrder(client, order.id, businessId);
     await client.query(
       `INSERT INTO outbox_events (business_id, event_type, aggregate_type, aggregate_id, payload) VALUES ($1, 'order.created', 'order', $2, $3::jsonb)`,
-      [businessId, order.id, JSON.stringify({ orderId: order.id, orderNumber })]
+      [
+        businessId,
+        order.id,
+        JSON.stringify({
+          orderId: order.id,
+          orderNumber,
+          branchId: response.branchId,
+          fulfillmentType: response.fulfillmentType,
+          customerName: response.customer.name,
+          customerPhone: response.customer.phone,
+          note: response.note,
+          items: response.items.map((item) => {
+            const orderItem = item as { productNameSnapshot: string; variantNameSnapshot: string | null; quantity: number; modifiers: Array<{ name: string }> };
+            return {
+              name: orderItem.productNameSnapshot,
+              variantName: orderItem.variantNameSnapshot,
+              quantity: orderItem.quantity,
+              modifiers: orderItem.modifiers.map((modifier) => modifier.name)
+            };
+          }),
+          totalMinor: response.totalMinor,
+          paymentMethod: response.payment.method
+        })
+      ]
     );
-    const response = await assembleOrder(client, order.id, businessId);
     await client.query(
       `UPDATE idempotency_keys SET response_status = 201, response_body = $3::jsonb WHERE business_id = $1 AND scope = 'storefront.order.submit' AND key = $2`,
       [businessId, idempotencyKey, JSON.stringify(response)]
@@ -340,7 +365,7 @@ export async function transitionOrder(
     );
     const order = result.rows[0];
     if (!order) throw new ApiError(404, "NOT_FOUND", "Order not found.");
-    if (!roleCanTransition(actor.role, input.toStatus)) {
+    if (actor.actorType !== "system" && !roleCanTransition(actor.role, input.toStatus)) {
       throw new ApiError(403, "FORBIDDEN", "Your role cannot perform this order transition.");
     }
     if (!canTransitionOrder(order.status, input.toStatus, order.fulfillmentType)) {
@@ -361,8 +386,8 @@ export async function transitionOrder(
       [orderId, businessId, input.toStatus]
     );
     await client.query(
-      `INSERT INTO order_events (order_id, business_id, branch_id, from_status, to_status, actor_type, actor_user_id, reason) VALUES ($1, $2, $3, $4, $5, 'user', $6, $7)`,
-      [orderId, businessId, order.branchId, order.status, input.toStatus, actor.userId, input.reason ?? null]
+      `INSERT INTO order_events (order_id, business_id, branch_id, from_status, to_status, actor_type, actor_user_id, reason) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [orderId, businessId, order.branchId, order.status, input.toStatus, actor.actorType ?? "user", actor.userId, input.reason ?? null]
     );
     if (input.toStatus === "REFUNDED") {
       await client.query(`UPDATE order_payments SET status = 'REFUNDED', updated_at = now() WHERE order_id = $1 AND business_id = $2`, [orderId, businessId]);
@@ -396,6 +421,9 @@ export async function transitionOrder(
       await insertAudit(client, audit);
     }
     const response = await assembleOrder(client, orderId, businessId);
+    if (input.toStatus === "ACCEPTED") {
+      await createKitchenPrintJob(client, businessId, order.branchId, orderId, response);
+    }
     await client.query("COMMIT");
     committed = true;
     return response;
@@ -405,6 +433,21 @@ export async function transitionOrder(
   } finally {
     client.release();
   }
+}
+
+export async function transitionOrderFromTelegram(
+  pool: Pool,
+  businessId: string,
+  orderId: string,
+  toStatus: OrderTransitionRequest["toStatus"]
+): Promise<OrderResponse> {
+  return transitionOrder(
+    pool,
+    businessId,
+    orderId,
+    { toStatus, reason: "Telegram" },
+    { userId: null, role: "SYSTEM", actorType: "system" }
+  );
 }
 
 async function claimIdempotency(

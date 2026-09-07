@@ -1,0 +1,84 @@
+{
+  "name": "Restaurant OS - Telegram Notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "restaurant-os-notify-telegram",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Outbox Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "restaurant-os-notify-telegram"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "secret-check",
+              "leftValue": "={{$json.headers['x-inbound-secret']}}",
+              "rightValue": "={{$env.N8N_INBOUND_SECRET}}",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "verify-secret",
+      "name": "Verify Inbound Secret",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body;\nconst payload = body.payload || {};\nconst maskedPhone = (payload.customerPhone || '').replace(/(\\d{2})\\d+(\\d{2})$/, '$1***$2');\n\nconst itemLines = (payload.items || []).map((item) => {\n  const variant = item.variantName ? ` (${item.variantName})` : '';\n  const modifiers = (item.modifiers || []).map((m) => `\\n   + ${m}`).join('');\n  return `${item.quantity}x ${item.name}${variant}${modifiers}`;\n}).join('\\n');\n\nconst totalText = payload.totalMinor !== undefined ? `${(payload.totalMinor / 100).toFixed(2)}\\u20ba` : '?';\n\nconst text = `\\ud83d\\udd34 YEN\\u0130 S\\u0130PAR\\u0130\\u015e #${payload.orderNumber ?? '?'}\\n\\n` +\n  `M\\u00fc\\u015fteri: ${payload.customerName ?? '?'}\\n` +\n  `Telefon: ${maskedPhone}\\n\\n` +\n  `${itemLines}\\n\\n` +\n  `Toplam: ${totalText}\\n` +\n  `Teslimat: ${payload.fulfillmentType ?? '?'}` +\n  (payload.note ? `\\n\\nNot: ${payload.note}` : '');\n\nconst orderId = payload.orderId;\nconst buttonRow = (labels) => labels.map(([text, status]) => ({ text, callback_data: `ord:${orderId}:${status}` }));\n\nconst replyMarkup = {\n  inline_keyboard: [\n    buttonRow([['Kabul Et', 'ACCEPTED'], ['Reddet', 'REJECTED']]),\n    buttonRow([['Haz\\u0131rlan\\u0131yor', 'PREPARING'], ['Haz\\u0131r', 'READY']]),\n    buttonRow([['Yola \\u00c7\\u0131kt\\u0131', 'OUT_FOR_DELIVERY'], ['Teslim Edildi', 'DELIVERED']])\n  ]\n};\n\nreturn [{ json: { chatId: body.chatId, text, replyMarkup } }];"
+      },
+      "id": "build-message",
+      "name": "Build Message Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{$json.chatId}}" },
+            { "name": "text", "value": "={{$json.text}}" },
+            { "name": "reply_markup", "value": "={{JSON.stringify($json.replyMarkup)}}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-telegram",
+      "name": "Send Telegram Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 220]
+    }
+  ],
+  "connections": {
+    "Outbox Webhook": {
+      "main": [[{ "node": "Verify Inbound Secret", "type": "main", "index": 0 }]]
+    },
+    "Verify Inbound Secret": {
+      "main": [[{ "node": "Build Message Text", "type": "main", "index": 0 }], []]
+    },
+    "Build Message Text": {
+      "main": [[{ "node": "Send Telegram Message", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}

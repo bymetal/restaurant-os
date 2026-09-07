@@ -58,6 +58,15 @@ hash-stored, atomically consumed via `UPDATE ... WHERE consumed_at IS NULL`),
 `webhook_events` (dedupe by `connection_id`+`provider_event_id`), `qr_codes`,
 and `acquisition_events`. See ADR-009 for the full design rationale.
 
+`0011_telegram_and_printers.sql` extends `integration_connections.provider`
+to also allow `'telegram'` and adds `chat_id`/`link_code`/`link_code_expires_at`
+columns (a single shared bot distinguishes tenants by `chat_id`, linked via a
+`/link {code}` flow — see ADR-010). It also adds `print_devices` (one row per
+physical printer, `role` of `KITCHEN`/`CASHIER`, `device_key_hash` for
+bearer-key auth) and `print_jobs` (`type`/`status` state machine, claimed by
+role via `FOR UPDATE SKIP LOCKED`, mirroring the outbox worker's claim
+pattern). `integration_health.integration_type` now also allows `'telegram'`.
+
 Apply migrations with:
 
 ```powershell

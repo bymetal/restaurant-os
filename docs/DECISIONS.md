@@ -346,3 +346,118 @@ then, `POST /v1/integrations/whatsapp/connect` will fail against a
 nonexistent Evolution server — this is the same "real schema, not yet
 connected to a live provider" posture ADR-008 established for billing and
 integration health.
+
+## ADR-010 - Telegram Operation Channel And Printer Agent
+
+- Date: 2026-09-07
+- Status: Accepted
+
+### Context
+
+Master plan section 30 (Telegram Operation Channel) and section 31 (Printer
+Agent) were the last unbuilt pieces of the "outbox + n8n/Telegram/printer"
+delivery phase from AGENTS.md — ADR-009 covered Evolution/WhatsApp and n8n
+infrastructure but not these two channels. Unlike Evolution (self-hosted,
+semi-documented), the Telegram Bot API is official and stable, so this phase
+leans on it directly where that simplifies the design. No live Telegram bot
+or physical ESC/POS printer exists in this environment, so both adapters are
+coded against their documented contracts and flagged for staging
+verification, matching the posture ADR-009 established for Evolution.
+
+### Decision
+
+- **Single shared platform bot, not one bot per restaurant.** `TELEGRAM_BOT_TOKEN`
+  is one global credential (mirroring `EVOLUTION_GLOBAL_API_KEY`'s "one
+  gateway, many tenant instances" shape); a business is distinguished by the
+  `chat_id` of the group it added the bot to, captured via a `/link {code}`
+  flow: `POST /v1/integrations/telegram/connect` generates a 6-digit
+  `link_code` (stored on `integration_connections`, 15-minute TTL, unique
+  while pending), the owner posts `/link {code}` in their Telegram group, and
+  `POST /v1/webhooks/telegram` (a single global webhook, not one per
+  connection like Evolution's) resolves the code and records the `chat_id`.
+  This reuses the acquisition-by-text-command pattern from ADR-009 instead of
+  inventing a new one.
+- **Notification content is built in n8n, state mutation stays in Core API.**
+  `apps/worker` dispatches `order.created` events to a new
+  `n8n/workflows/telegram-notifications.json` workflow (same shape as
+  ADR-009's WhatsApp workflow — outbox → secret check → template → provider
+  call), which formats the master plan's "🔴 YENİ SİPARİŞ" template and
+  attaches inline-keyboard buttons whose `callback_data` encodes
+  `ord:{orderId}:{toStatus}`. But **button presses are not routed through
+  n8n**: Telegram delivers `callback_query` updates straight to
+  `POST /v1/webhooks/telegram`, which resolves the connection by `chat_id`
+  and calls `transitionOrder` directly — satisfying master plan section 30's
+  explicit requirement that "Telegram callback doğrudan Core API'ye signed
+  endpoint üzerinden gitmelidir" and that state mutation never lives in n8n.
+- **System actor for order transitions.** `transitionOrder`'s `Actor` type
+  gained an optional `actorType: "user" | "system"` and a nullable `userId`;
+  Telegram-triggered transitions (`transitionOrderFromTelegram`) skip the
+  role check (`roleCanTransition`) since Telegram has no per-person role
+  mapping — the group chat itself is the access boundary, same trust level
+  as the OWNER/MANAGER who linked it. `order_events.actor_type` already had
+  a `'system'` value in its CHECK constraint from ADR-004, so no schema
+  change was needed there.
+- **Kitchen print jobs are created synchronously inside `transitionOrder`**,
+  not by a separate consumer, the same "same transaction as the state
+  change" pattern ADR-005 used for stamp-earning: when an order moves to
+  `ACCEPTED` (whether via the admin UI or a Telegram button), `orders.ts`
+  calls `createKitchenPrintJob` with the already-assembled `OrderResponse`,
+  writing one `print_jobs` row (`type = 'KITCHEN_RECEIPT'`).
+- **Print jobs are claimed by role, not pre-assigned to a device.**
+  `print_devices.role` (`KITCHEN`/`CASHIER`) determines which job `type` a
+  device's `GET /v1/printers/jobs/pending` can claim
+  (`printJobTypeForDeviceRole` in `packages/domain`); the claim query is
+  `FOR UPDATE SKIP LOCKED` scoped to the device's own `business_id`/`branch_id`,
+  the same job-queue pattern `apps/worker`'s outbox consumer already uses.
+  Only `KITCHEN_RECEIPT` is actually produced today — `CASHIER_RECEIPT`/
+  `PIZZA_BOX_LABEL`/`DELIVERY_LABEL` exist in the schema and domain enum for
+  forward compatibility but have no trigger yet, avoiding building untested
+  speculative flows.
+- **Device authentication is a separate, simpler scheme from JWT.** A
+  print-agent isn't a logged-in user; `POST /v1/printers/devices` (JWT,
+  `business:printer:write`, OWNER/MANAGER only) returns a random per-device
+  key **once** (same one-time-reveal UX as the Coolify token in this
+  project's own credential handling), storing only its SHA-256 hash — the
+  same hash-not-encrypt choice ADR-009 made for loyalty claim tokens, since
+  the plaintext never needs to be recovered, only verified.
+- **`apps/print-agent` is a new, dependency-light app** that runs on the
+  restaurant's own PC/mini-PC/Raspberry Pi per master plan section 31, not in
+  Coolify's cloud compose file — it authenticates with its device key,
+  polls `/v1/printers/heartbeat` and `/v1/printers/jobs/pending`, and acks
+  via `/v1/printers/jobs/:id/ack`. Its `PrinterDriver` is a `ConsolePrinterDriver`
+  that renders the ticket to stdout instead of real ESC/POS output — no
+  physical thermal printer was available to build and test a real driver
+  against, so the interface is the deliberate seam for that later work,
+  the same "real integration boundary, mocked hardware" choice ADR-009 made
+  for QR/WhatsApp acquisition infrastructure before Evolution existed.
+- **Printer offline detection lives in `apps/worker`**, alongside the
+  existing outbox polling: every 5-second tick, any `print_devices` row
+  whose `last_heartbeat_at` is older than 3 minutes flips to `offline` and
+  opens a `system_issues` row (`issue_type = 'printer_offline'`, one open
+  issue per device via a `metadata->>'deviceId'` guard so multiple printers
+  per branch don't collide) — implementing master plan WF-12 (Printer
+  Alert) using the `integration_health`/`system_issues` tables ADR-008
+  already built for exactly this purpose.
+- **`TELEGRAM_BOT_TOKEN` is deliberately excluded from the production
+  secret-crash guard** in `packages/config/src/env.ts`, unlike
+  `EVOLUTION_GLOBAL_API_KEY`/`N8N_INBOUND_SECRET`. This is a direct lesson
+  from the Faz L deployment outage (see `vault/restorant-loyal/deployment.md`):
+  requiring a real value for a credential nobody has yet would either block
+  every future deploy or repeat that outage. `TELEGRAM_WEBHOOK_SECRET` (a
+  purely internal, generatable-in-advance secret) stays in the guard and was
+  given a real value in Coolify before this feature's first deploy.
+
+### Consequences
+
+Telegram order notifications/button-driven status changes and kitchen print
+jobs are fully coded and covered by `tests/integration/telegram.test.ts` and
+`tests/integration/printers.test.ts` (cross-tenant isolation, role-scoped job
+routing, webhook dedupe, link-code confirmation, callback-driven transitions),
+but nothing here is verified against a live Telegram bot or physical printer:
+(1) a real Telegram bot must be created via @BotFather and `TELEGRAM_BOT_TOKEN`
+set in Coolify before `/v1/integrations/telegram/connect` can do anything
+useful, (2) `n8n/workflows/telegram-notifications.json` needs the same
+import-and-activate treatment as the WhatsApp workflow once n8n is live,
+(3) `apps/print-agent` needs a real ESC/POS driver implementation before any
+restaurant can use it for actual printing — today it only proves the
+heartbeat/poll/claim/ack protocol end-to-end.

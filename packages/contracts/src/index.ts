@@ -102,3 +102,15 @@ export {
   type CreateQrCodeRequest,
   type QrCodeType
 } from "./qr.js";
+export {
+  deviceIdParamsSchema,
+  printDeviceRoleSchema,
+  printJobAckRequestSchema,
+  printJobIdParamsSchema,
+  registerPrintDeviceRequestSchema,
+  type DeviceIdParams,
+  type PrintDeviceRole,
+  type PrintJobAckRequest,
+  type PrintJobIdParams,
+  type RegisterPrintDeviceRequest
+} from "./printers.js";

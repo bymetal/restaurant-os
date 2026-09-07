@@ -48,3 +48,35 @@ connection is `connected` (`apps/worker` checks `integration_connections`
 before calling this webhook) — see `packages/integrations/src/evolution.ts`
 and `integrations/evolution/README.md` for the connection lifecycle, which
 also needs staging verification against a real Evolution instance.
+
+## telegram-notifications.json
+
+Implements the "Yeni Sipariş" Telegram notification from master plan
+section 30. Unlike WhatsApp, a single shared platform bot (`TELEGRAM_BOT_TOKEN`)
+serves every tenant; the destination is a `chat_id`, captured when a
+restaurant links their group via the `/link {code}` flow (see
+`apps/api/src/repositories/telegram.ts`).
+
+1. **Outbox Webhook** — receives `POST /webhook/restaurant-os-notify-telegram`
+   from `apps/worker` on `order.created`, body: `{ chatId, payload }` where
+   `payload` is the enriched snapshot written in
+   `apps/api/src/repositories/orders.ts::checkoutOrder` (items, customer,
+   total, fulfillment).
+2. **Verify Inbound Secret** — same `N8N_INBOUND_SECRET` check as the
+   WhatsApp workflow.
+3. **Build Message Text** — formats the Turkish "🔴 YENİ SİPARİŞ" template
+   from master plan section 30 and builds the inline keyboard
+   (Kabul Et/Reddet/Hazırlanıyor/Hazır/Yola Çıktı/Teslim Edildi), each
+   button's `callback_data` encoding `ord:{orderId}:{toStatus}`.
+4. **Send Telegram Message** — calls `sendMessage` directly via the Bot API
+   using `TELEGRAM_BOT_TOKEN`.
+
+Button presses are **not** handled by n8n: Telegram delivers `callback_query`
+updates straight to `POST /v1/webhooks/telegram` on Core API (a single global
+webhook, since one bot serves all tenants), which resolves the connection by
+`chat_id` and calls `transitionOrder` under the hood — matching master plan
+section 30's requirement that state mutation stays in Core API even though
+the notification is built in n8n. This workflow was hand-authored without a
+live n8n/Telegram bot to import and test against; verify the `sendMessage`
+payload shape (especially `reply_markup` as a JSON string body parameter)
+before relying on it, per the same caveats as `whatsapp-notifications.json`.

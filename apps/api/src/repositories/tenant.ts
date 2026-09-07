@@ -9,7 +9,7 @@ import { ApiError } from "../errors.js";
 export interface AuditInput {
   businessId?: string | undefined;
   branchId?: string;
-  actorUserId: string;
+  actorUserId: string | null;
   actorRole: string;
   action: string;
   entityType: string;

@@ -9,6 +9,7 @@
     { "path": "packages/db" },
     { "path": "packages/ui" },
     { "path": "apps/api" },
-    { "path": "apps/worker" }
+    { "path": "apps/worker" },
+    { "path": "apps/print-agent" }
   ]
 }

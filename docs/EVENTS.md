@@ -31,3 +31,24 @@ Events whose dispatch keeps failing are marked published after 10 attempts
 (`apps/api/src/repositories/webhooks.ts`) when an inbound `KATIL {token}`
 message creates or matches a customer, in the same transaction as the
 customer upsert and the `TRANSACTIONAL` consent row.
+
+`order.created` now also carries an enriched payload (branch, fulfillment,
+customer name/phone, item lines with modifiers, note, total, payment method)
+so `apps/worker` can forward a self-contained notification to Telegram
+without an extra query. The worker's `WHATSAPP_EVENT_TYPES` set is unchanged
+(`order.status_changed`/`loyalty.stamp_earned`/`customer.whatsapp_joined`);
+`order.created` is instead routed to a separate `dispatchTelegram` path that
+looks up the business's connected Telegram `chat_id` and forwards to
+`n8n/workflows/telegram-notifications.json` — see ADR-010.
+
+Order transitions to `ACCEPTED` also create a `print_jobs` row
+(`type = 'KITCHEN_RECEIPT'`) synchronously inside `transitionOrder`, the same
+transaction-scoped pattern used for `loyalty.stamp_earned`. This fires
+identically whether the transition came from the admin UI or from a Telegram
+`callback_query` (`transitionOrderFromTelegram`, an actor with
+`actorType: "system"`).
+
+`apps/worker` also runs a printer-health sweep on every tick: any
+`print_devices` row whose `last_heartbeat_at` is older than 3 minutes flips
+to `offline` and opens a `system_issues` row (`issue_type = 'printer_offline'`),
+implementing master plan WF-12. See ADR-010.

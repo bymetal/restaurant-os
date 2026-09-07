@@ -16,6 +16,8 @@ x-app-environment: &app-environment
   - EVOLUTION_GLOBAL_API_KEY
   - N8N_BASE_URL
   - N8N_INBOUND_SECRET
+  - TELEGRAM_BOT_TOKEN
+  - TELEGRAM_WEBHOOK_SECRET
 
 services:
   api:
@@ -132,6 +134,7 @@ services:
       - EVOLUTION_BASE_URL
       - EVOLUTION_GLOBAL_API_KEY
       - N8N_INBOUND_SECRET
+      - TELEGRAM_BOT_TOKEN
     expose:
       - "5678"
     volumes:

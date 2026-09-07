@@ -21,6 +21,8 @@ const baseDependencies = {
   appUrl: "http://127.0.0.1:4000",
   appEncryptionKey: "test-app-encryption-key-test-app-encryption-key",
   evolutionConfig: { baseUrl: "http://127.0.0.1:8080", globalApiKey: "test-evolution-key" },
+  telegramConfig: { botToken: "test-telegram-token" },
+  telegramWebhookSecret: "test-telegram-webhook-secret-test",
   authConfig
 };
 

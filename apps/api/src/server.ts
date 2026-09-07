@@ -25,6 +25,10 @@ const app = buildApp(
       baseUrl: env.EVOLUTION_BASE_URL,
       globalApiKey: env.EVOLUTION_GLOBAL_API_KEY
     },
+    telegramConfig: {
+      botToken: env.TELEGRAM_BOT_TOKEN
+    },
+    telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET,
     authConfig: {
       jwtSecret: env.JWT_SECRET,
       jwtIssuer: env.JWT_ISSUER,

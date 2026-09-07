@@ -13,7 +13,14 @@ let stopping = false;
 const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE = 20;
 const MAX_ATTEMPTS = 10;
-const NOTIFIABLE_EVENT_TYPES = new Set(["order.status_changed", "loyalty.stamp_earned", "customer.whatsapp_joined"]);
+const PRINTER_OFFLINE_THRESHOLD = "3 minutes";
+const NOTIFIABLE_EVENT_TYPES = new Set([
+  "order.created",
+  "order.status_changed",
+  "loyalty.stamp_earned",
+  "customer.whatsapp_joined"
+]);
+const WHATSAPP_EVENT_TYPES = new Set(["order.status_changed", "loyalty.stamp_earned", "customer.whatsapp_joined"]);
 
 interface OutboxRow {
   id: string;
@@ -30,7 +37,33 @@ const processPendingWork = async (): Promise<void> => {
     process.stderr.write(`${JSON.stringify({ event: "worker_dependency_error", error: String(error) })}\n`);
   }
   await processOutbox();
+  await checkPrinterHealth();
 };
+
+async function checkPrinterHealth(): Promise<void> {
+  const client = await database.connect();
+  try {
+    const stale = await client.query<{ id: string; businessId: string; name: string }>(
+      `UPDATE print_devices SET status = 'offline'
+       WHERE status = 'online' AND last_heartbeat_at < now() - interval '${PRINTER_OFFLINE_THRESHOLD}'
+       RETURNING id, business_id AS "businessId", name`
+    );
+    for (const device of stale.rows) {
+      await client.query(
+        `INSERT INTO system_issues (issue_type, business_id, severity, description, status, metadata)
+         SELECT 'printer_offline', $1::uuid, 'warning', $2, 'open', $3::jsonb
+         WHERE NOT EXISTS (
+           SELECT 1 FROM system_issues WHERE business_id = $1::uuid AND issue_type = 'printer_offline' AND status = 'open' AND metadata->>'deviceId' = $4
+         )`,
+        [device.businessId, `Yazıcı "${device.name}" bağlantısı kesildi.`, JSON.stringify({ deviceId: device.id }), device.id]
+      );
+    }
+  } catch (error) {
+    process.stderr.write(`${JSON.stringify({ event: "worker_printer_health_error", error: String(error) })}\n`);
+  } finally {
+    client.release();
+  }
+}
 
 async function processOutbox(): Promise<void> {
   const client = await database.connect();
@@ -79,6 +112,13 @@ async function processOutbox(): Promise<void> {
 }
 
 async function dispatchNotification(client: PoolClient, event: OutboxRow): Promise<void> {
+  await dispatchWhatsApp(client, event);
+  await dispatchTelegram(client, event);
+}
+
+async function dispatchWhatsApp(client: PoolClient, event: OutboxRow): Promise<void> {
+  if (!WHATSAPP_EVENT_TYPES.has(event.eventType)) return;
+
   const connection = await client.query<{ instanceName: string }>(
     `SELECT instance_name AS "instanceName" FROM integration_connections
      WHERE business_id = $1 AND provider = 'evolution' AND connection_state = 'connected'`,
@@ -96,6 +136,25 @@ async function dispatchNotification(client: PoolClient, event: OutboxRow): Promi
     body: JSON.stringify({ eventType: event.eventType, instanceName, phone, payload: event.payload })
   });
   if (!response.ok) throw new Error(`n8n dispatch failed with status ${response.status}`);
+}
+
+async function dispatchTelegram(client: PoolClient, event: OutboxRow): Promise<void> {
+  if (event.eventType !== "order.created") return;
+
+  const connection = await client.query<{ chatId: string }>(
+    `SELECT chat_id AS "chatId" FROM integration_connections
+     WHERE business_id = $1 AND provider = 'telegram' AND connection_state = 'connected' AND chat_id IS NOT NULL`,
+    [event.businessId]
+  );
+  const chatId = connection.rows[0]?.chatId;
+  if (!chatId) return;
+
+  const response = await fetch(`${env.N8N_BASE_URL}/webhook/restaurant-os-notify-telegram`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-inbound-secret": env.N8N_INBOUND_SECRET },
+    body: JSON.stringify({ chatId, payload: event.payload })
+  });
+  if (!response.ok) throw new Error(`n8n telegram dispatch failed with status ${response.status}`);
 }
 
 async function resolvePhone(client: PoolClient, event: OutboxRow): Promise<string | null> {

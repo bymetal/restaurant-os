@@ -8,7 +8,7 @@ import cors from "@fastify/cors";
 import type { Pool } from "pg";
 import type { Redis } from "ioredis";
 import type { AuthConfig } from "@restaurant-os/auth";
-import type { EvolutionConfig } from "@restaurant-os/integrations";
+import type { EvolutionConfig, TelegramConfig } from "@restaurant-os/integrations";
 import {
   liveHealthSchema,
   readyHealthSchema,
@@ -26,8 +26,10 @@ import { registerEvolutionRoutes } from "./routes/evolution.js";
 import { registerLoyaltyRoutes } from "./routes/loyalty.js";
 import { registerMenuRoutes } from "./routes/menu.js";
 import { registerOrderRoutes } from "./routes/orders.js";
+import { registerPrinterRoutes } from "./routes/printers.js";
 import { registerPublicRoutes } from "./routes/public.js";
 import { registerQrRoutes } from "./routes/qr.js";
+import { registerTelegramRoutes } from "./routes/telegram.js";
 import { registerTenantRoutes } from "./routes/tenant.js";
 import { registerWebhookRoutes } from "./routes/webhooks.js";
 
@@ -49,6 +51,8 @@ export interface AppDependencies extends HealthDependencies {
   appUrl: string;
   appEncryptionKey: string;
   evolutionConfig: EvolutionConfig;
+  telegramConfig: TelegramConfig;
+  telegramWebhookSecret: string;
 }
 
 export function buildApp(
@@ -82,8 +86,10 @@ export function buildApp(
   registerBusinessAnalyticsRoutes(app, dependencies.pool);
   registerPlatformAnalyticsRoutes(app, dependencies.pool);
   registerEvolutionRoutes(app, dependencies.pool, dependencies.evolutionConfig, dependencies.appUrl, dependencies.appEncryptionKey);
+  registerTelegramRoutes(app, dependencies.pool, dependencies.telegramConfig, dependencies.appUrl, dependencies.telegramWebhookSecret);
+  registerPrinterRoutes(app, dependencies.pool);
   registerQrRoutes(app, dependencies.pool);
-  registerWebhookRoutes(app, dependencies.pool, dependencies.redis);
+  registerWebhookRoutes(app, dependencies.pool, dependencies.redis, dependencies.telegramConfig, dependencies.telegramWebhookSecret);
   registerPublicRoutes(
     app,
     dependencies.pool,

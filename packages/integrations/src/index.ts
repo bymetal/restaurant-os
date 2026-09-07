@@ -13,3 +13,10 @@ export {
   type EvolutionInstance,
   type EvolutionQrCode
 } from "./evolution.js";
+export {
+  TelegramApiError,
+  TelegramClient,
+  type TelegramBotIdentity,
+  type TelegramConfig,
+  type TelegramInlineKeyboardButton
+} from "./telegram.js";
