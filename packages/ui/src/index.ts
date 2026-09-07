@@ -14,3 +14,4 @@ export { DateRangePicker, type DateRangePickerProps, type DateRange } from "./Da
 export { Sparkline, type SparklineProps } from "./charts/Sparkline.js";
 export { BarLineChart, type BarLineChartProps } from "./charts/BarLineChart.js";
 export { DonutChart, type DonutChartProps, type DonutSlice } from "./charts/DonutChart.js";
+export { CookieConsentBanner, type CookieConsentBannerProps } from "./CookieConsentBanner.js";

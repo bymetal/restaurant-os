@@ -1,4 +1,5 @@
 import { FeatureShowcase } from "./_components/FeatureShowcase";
+import { Footer } from "./_components/Footer";
 import { Hero } from "./_components/Hero";
 import { MarketingNav } from "./_components/MarketingNav";
 import { Pricing } from "./_components/Pricing";
@@ -14,6 +15,7 @@ export default function LandingPage() {
         <FeatureShowcase />
         <Pricing />
       </main>
+      <Footer />
     </>
   );
 }
